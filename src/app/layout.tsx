@@ -33,7 +33,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <body className={`${vazir.className} bg-gray-50 text-gray-900 antialiased`}>
+      <body className={`${vazir.className} bg-gray-50 text-gray-900 antialiased`} suppressHydrationWarning>
         {children}
       </body>
     </html>

@@ -41,7 +41,13 @@ export function Dashboard({
   const [isCreatingTab, setIsCreatingTab] = useState(false);
   const [showAddTabModal, setShowAddTabModal] = useState(false);
   const [allSheets, setAllSheets] = useState(initialSheets);
+  const [mounted, setMounted] = useState(false);
   
+  // Set mounted state for hydration stability
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Client-side Cache
   const [cachedData, setCachedData] = useState<Record<string, any[]>>({
     [initialSheets[0] || "Donation"]: initialTransactions
@@ -152,8 +158,10 @@ export function Dashboard({
 
   const total = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
 
+  if (!mounted) return null;
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-20" suppressHydrationWarning>
       
       {/* ================= HEADER ================= */}
       <header className="bg-white border-b border-gray-100 px-6 py-6 sticky top-0 z-40 shadow-sm">
