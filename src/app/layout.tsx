@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   description: "إدارة مالية ذكية للتبرعات",
   manifest: "/manifest.json",
   icons: {
+    icon: "/icon.png",
     apple: "/icon-192x192.png",
   },
 };
