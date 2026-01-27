@@ -1,26 +1,72 @@
 @import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import "tw-animate-css";
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --radius-sm: 0.5rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #ffffff;
+  --ring: #2563eb;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: inherit;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-primary-foreground font-bold py-3 px-6 rounded-xl transition-all active:scale-95 shadow-lg shadow-primary/20 hover:bg-primary/90 flex items-center justify-center gap-2;
+  }
+
+  .card-simple {
+    @apply bg-white rounded-2xl p-4 shadow-sm border border-gray-100;
+  }
+
+  .input-simple {
+    @apply bg-white border-2 border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-primary/50 transition-all font-bold text-lg text-right;
+  }
+
+  .tab-item {
+    @apply px-5 py-2.5 rounded-xl font-bold transition-all whitespace-nowrap border-2;
+  }
+
+  .tab-active {
+    @apply bg-primary text-white border-primary shadow-lg shadow-primary/20;
+  }
+
+  .tab-inactive {
+    @apply bg-white text-gray-400 border-gray-100 hover:border-gray-200;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+[dir="rtl"] .text-right {
+  text-align: right;
+}
+
+[dir="rtl"] .flex-row-reverse {
+  flex-direction: row-reverse;
 }
