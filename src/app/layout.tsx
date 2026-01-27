@@ -11,6 +11,14 @@ export const metadata: Metadata = {
   title: "تطبيق التبرعات",
   description: "إدارة مالية ذكية للتبرعات",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Donation App",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: "/icon.png",
     apple: "/icon-192x192.png",
