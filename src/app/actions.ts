@@ -3,27 +3,69 @@
 import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
 
-/**
- * Note for USER:
- * Please ensure your Supabase project has the following tables:
- * 1. `categories` (name text primary key)
- * 2. `transactions` (id bigint primary key generated always as identity, created_at timestamp with time zone default now(), name text, amount numeric, note text, category text references categories(name) on delete cascade)
- */
+import { cookies } from "next/headers";
+
+export async function loginUser(username: string) {
+  try {
+    // Check if user exists
+    const { data } = await supabase
+      .from('app_users')
+      .select('username')
+      .eq('username', username)
+      .single();
+
+    if (!data) return { success: false, error: "User not found" };
+
+    // Set Cookie
+    const cookieStore = await cookies();
+    cookieStore.set("app_user", username, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 30 // 30 days
+    });
+
+    return { success: true };
+  } catch (e) {
+    return { success: false };
+  }
+}
+
+export async function logoutUser() {
+  (await cookies()).delete("app_user");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function getCurrentUser() {
+  return (await cookies()).get("app_user")?.value;
+}
 
 export async function getSheets() {
   try {
+    const user = await getCurrentUser();
+    if (!user) return ["Donation"]; // Silent return for unauthenticated revalidations
+
     const { data, error } = await supabase
       .from('categories')
       .select('name')
+      .eq('owner_name', user)
       .order('name', { ascending: true });
 
     if (error) throw error;
-    
+
     const categories = data.map(c => c.name);
     if (categories.length === 0) {
-        // Ensure at least one category exists
-        await createSheet("Donation");
-        return ["Donation"];
+      // Ensure at least one category exists (Use upsert to avoid race conditions)
+      const { error: insertError } = await supabase
+        .from('categories')
+        .upsert(
+          [{ name: "Donation", owner_name: user }],
+          { onConflict: 'name, owner_name', ignoreDuplicates: true }
+        );
+
+      if (insertError) console.error("Auto-create error details:", JSON.stringify(insertError, null, 2));
+
+      return ["Donation"];
     }
     return categories;
   } catch (error) {
@@ -34,9 +76,12 @@ export async function getSheets() {
 
 export async function createSheet(sheetName: string) {
   try {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
     const { error } = await supabase
       .from('categories')
-      .insert([{ name: sheetName }]);
+      .insert([{ name: sheetName, owner_name: user }]);
 
     if (error) throw error;
     revalidatePath("/");
@@ -52,7 +97,8 @@ export async function deleteSheet(sheetName: string) {
     const { error } = await supabase
       .from('categories')
       .delete()
-      .eq('name', sheetName);
+      .eq('name', sheetName)
+      .eq('owner_name', await getCurrentUser());
 
     if (error) throw error;
     revalidatePath("/");
@@ -65,19 +111,23 @@ export async function deleteSheet(sheetName: string) {
 
 export async function getTransactions(sheetName: string = "Donation") {
   try {
+    const user = await getCurrentUser();
+    if (!user) return []; // Silent return for unauthenticated revalidations
+
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
       .eq('category', sheetName)
+      .eq('owner_name', user)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
     return data.map(t => ({
       id: t.id,
-      date: new Date(t.created_at).toLocaleString('ar-EG', { 
+      date: new Date(t.created_at).toLocaleString('ar-EG', {
         year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit' 
+        hour: '2-digit', minute: '2-digit'
       }),
       name: t.name,
       amount: parseFloat(t.amount) || 0,
@@ -99,17 +149,21 @@ export async function addTransaction(formData: FormData, sheetName: string = "Do
   }
 
   try {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
     const { error } = await supabase
       .from('transactions')
       .insert([{
         name,
         amount: parseFloat(amount),
         note: note || "",
-        category: sheetName
+        category: sheetName,
+        owner_name: user
       }]);
 
     if (error) throw error;
-    
+
     revalidatePath("/");
     return { success: true };
   } catch (error) {
@@ -123,7 +177,8 @@ export async function clearAllTransactions(sheetName: string = "Donation") {
     const { error } = await supabase
       .from('transactions')
       .delete()
-      .eq('category', sheetName);
+      .eq('category', sheetName)
+      .eq('owner_name', await getCurrentUser());
 
     if (error) throw error;
 
@@ -140,10 +195,11 @@ export async function deleteTransaction(sheetName: string, id: number) {
     const { error } = await supabase
       .from('transactions')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('owner_name', await getCurrentUser());
 
     if (error) throw error;
-    
+
     revalidatePath("/");
     return { success: true };
   } catch (error) {
@@ -161,10 +217,11 @@ export async function updateTransaction(sheetName: string, id: number, data: { n
         amount: parseFloat(data.amount),
         note: data.note || ""
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('owner_name', await getCurrentUser());
 
     if (error) throw error;
-    
+
     revalidatePath("/");
     return { success: true };
   } catch (error) {

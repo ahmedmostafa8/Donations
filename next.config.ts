@@ -14,3 +14,12 @@ export default withPWA({
   reactStrictMode: true,
   turbopack: {},
 });
+
+// Temporary fix: Export standard config to debug server actions
+// import type { NextConfig } from "next";
+
+// const nextConfig: NextConfig = {
+//   reactStrictMode: true,
+// };
+
+// export default nextConfig;

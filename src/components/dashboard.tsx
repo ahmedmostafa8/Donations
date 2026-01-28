@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check } from "lucide-react";
+import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TransactionList } from "./transaction-list";
 import { supabase } from "@/lib/supabase";
-import { clearAllTransactions, getTransactions, createSheet, deleteSheet } from "@/app/actions";
+import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, getCurrentUser } from "@/app/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +54,17 @@ export function Dashboard({
   });
 
   // Refresh data when currentSheet changes
+  const [username, setUsername] = useState("جاري التحميل...");
+  useEffect(() => {
+    getCurrentUser().then(u => setUsername(u || "Unknown"));
+  }, []);
+
+  const handleLogout = async () => {
+    setLoading(true);
+    await logoutUser();
+    window.location.href = "/login";
+  };
+
   useEffect(() => {
     if (cachedData[currentSheet]) {
       setTransactions(cachedData[currentSheet]);
@@ -172,7 +183,17 @@ export function Dashboard({
             </div>
             <div>
               <h1 className="text-xl font-black tracking-tight">إدارة التبرعات</h1>
-              <p className="text-[11px] text-gray-400 font-bold">بواسطة آدم</p>
+              <div className="flex items-center gap-1.5 opacity-60">
+                <p className="text-[11px] font-bold capitalize">بواسطة {username}</p>
+                <div className="w-[1px] h-2 bg-gray-300 mx-1" />
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-1 hover:text-red-500 transition-colors"
+                  title="تسجيل خروج"
+                >
+                  <LogOut className="w-3 h-3" />
+                </button>
+              </div>
             </div>
           </div>
           <div className="text-center bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
