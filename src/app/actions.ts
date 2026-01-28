@@ -109,6 +109,44 @@ export async function deleteSheet(sheetName: string) {
   }
 }
 
+export async function renameSheet(oldName: string, newName: string) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // 1. Create new category
+    const { error: createError } = await supabase
+      .from('categories')
+      .insert([{ name: newName, owner_name: user }]);
+
+    if (createError) throw createError;
+
+    // 2. Move transactions to new category
+    const { error: moveError } = await supabase
+      .from('transactions')
+      .update({ category: newName })
+      .eq('category', oldName)
+      .eq('owner_name', user);
+
+    if (moveError) throw moveError;
+
+    // 3. Delete old category
+    const { error: deleteError } = await supabase
+      .from('categories')
+      .delete()
+      .eq('name', oldName)
+      .eq('owner_name', user);
+
+    if (deleteError) throw deleteError;
+
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("Error renaming category:", error);
+    return { success: false, error: "فشل في تغيير الاسم" };
+  }
+}
+
 export async function getTransactions(sheetName: string = "Donation") {
   try {
     const user = await getCurrentUser();

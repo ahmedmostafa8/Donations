@@ -64,7 +64,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || !username}
+              disabled={loading || !username.trim()}
               className={cn(
                 "w-full h-14 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all",
                 "bg-primary text-white hover:bg-primary/90 active:scale-[0.98] shadow-xl shadow-primary/20",

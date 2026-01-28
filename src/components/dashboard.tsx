@@ -1,11 +1,12 @@
 "use client";
+import { useRouter } from "next/navigation";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TransactionList } from "./transaction-list";
 import { supabase } from "@/lib/supabase";
-import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, getCurrentUser } from "@/app/actions";
+import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, getCurrentUser, renameSheet } from "@/app/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +27,12 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
+
+
+// Inside Dashboard component...
+
+
 
 export function Dashboard({
   initialSheets,
@@ -42,6 +49,37 @@ export function Dashboard({
   const [showAddTabModal, setShowAddTabModal] = useState(false);
   const [allSheets, setAllSheets] = useState(initialSheets);
   const [mounted, setMounted] = useState(false);
+  const [editingTab, setEditingTab] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const longPressTimer = useRef<NodeJS.Timeout>(null);
+
+  const handleRenameTab = async () => {
+    if (!editingTab || !renameValue.trim() || renameValue === editingTab) {
+      setEditingTab(null);
+      return;
+    }
+
+    const oldName = editingTab;
+    const newName = renameValue.trim();
+
+    // Optimistic update
+    const prevSheets = [...allSheets];
+    const newSheets = allSheets.map(s => s === oldName ? newName : s);
+    setAllSheets(newSheets);
+    if (currentSheet === oldName) setCurrentSheet(newName);
+    setEditingTab(null);
+
+    try {
+      const res = await renameSheet(oldName, newName);
+      if (!res.success) {
+        toast.error("فشل في تغيير الاسم");
+        setAllSheets(prevSheets);
+        if (currentSheet === newName) setCurrentSheet(oldName);
+      }
+    } catch (e) {
+      setAllSheets(prevSheets);
+    }
+  };
 
   // Set mounted state for hydration stability
   useEffect(() => {
@@ -59,10 +97,11 @@ export function Dashboard({
     getCurrentUser().then(u => setUsername(u || "Unknown"));
   }, []);
 
+  const router = useRouter();
   const handleLogout = async () => {
     setLoading(true);
     await logoutUser();
-    window.location.href = "/login";
+    router.push("/login");
   };
 
   useEffect(() => {
@@ -133,7 +172,11 @@ export function Dashboard({
   };
 
   const handleDeleteTab = async (sheetName: string) => {
-    if (sheetName === "Donation" || allSheets.length <= 1) return;
+    // Prevent deleting the last remaining tab
+    if (allSheets.length <= 1) {
+      toast.error("لا يمكن حذف آخر تصنيف");
+      return;
+    }
 
     const previousSheets = [...allSheets];
     const filtered = allSheets.filter(s => s !== sheetName);
@@ -369,22 +412,73 @@ export function Dashboard({
           <div className="h-5 w-[1px] bg-gray-200 shrink-0 mx-0.5" />
 
           {/* Tabs List */}
-          <div className="flex-1 flex gap-3 overflow-x-auto no-scrollbar py-1 px-1">
+          <div className="flex-1 flex gap-3 overflow-x-auto no-scrollbar py-3 px-1">
             {allSheets.map((sheet) => (
               <div key={sheet} className="relative shrink-0 flex items-center group">
-                <button
-                  onClick={() => setCurrentSheet(sheet)}
-                  className={cn(
-                    "h-9 px-5 rounded-xl font-black text-[13px] transition-all whitespace-nowrap flex items-center justify-center relative",
-                    currentSheet === sheet
-                      ? "bg-primary text-white -translate-y-[1px]"
-                      : "bg-white text-gray-400 border border-gray-200 hover:border-gray-300"
-                  )}
-                >
-                  {sheet}
-                </button>
+                {editingTab === sheet ? (
+                  <div className="relative">
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={handleRenameTab}
+                      onKeyDown={(e) => e.key === 'Enter' && handleRenameTab()}
+                      style={{ width: `${Math.max(renameValue.length, 6) + 4}ch` }}
+                      className="h-9 px-3 rounded-xl font-bold text-[13px] text-center border-2 border-primary outline-none min-w-[100px]"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setCurrentSheet(sheet)}
+                      onDoubleClick={() => {
+                        setEditingTab(sheet);
+                        setRenameValue(sheet);
+                      }}
+                      // Long Press for Mobile
+                      onTouchStart={(e) => {
+                        longPressTimer.current = setTimeout(() => {
+                          setEditingTab(sheet);
+                          setRenameValue(sheet);
+                          try {
+                            if (navigator.vibrate) navigator.vibrate(50);
+                          } catch (e) { /* ignore */ }
+                        }, 600);
+                      }}
+                      onTouchEnd={() => {
+                        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                      }}
+                      onTouchMove={() => {
+                        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                      }}
+                      className={cn(
+                        "h-9 px-5 rounded-xl font-black text-[13px] transition-all whitespace-nowrap flex items-center justify-center relative select-none",
+                        currentSheet === sheet
+                          ? "bg-primary text-white -translate-y-[1px]"
+                          : "bg-white text-gray-400 border border-gray-200 hover:border-gray-300"
+                      )}
+                    >
+                      {sheet}
+                    </button>
 
-                {sheet !== "Donation" && allSheets.length > 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingTab(sheet);
+                        setRenameValue(sheet);
+                      }}
+                      className={cn(
+                        "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-md transition-all z-10",
+                        "opacity-0 group-hover:opacity-100 scale-90 hover:scale-110 bg-blue-500 text-white"
+                      )}
+                      title="تعديل الاسم"
+                    >
+                      <Pencil className="w-2.5 h-2.5" />
+                    </button>
+                  </>
+                )}
+
+                {allSheets.length > 1 && !editingTab && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <button className={cn(
