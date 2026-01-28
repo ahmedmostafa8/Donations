@@ -175,11 +175,11 @@ export function Dashboard({
               <p className="text-[11px] text-gray-400 font-bold">بواسطة آدم</p>
             </div>
           </div>
-          <div className="text-left bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
+          <div className="text-center bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
             <div className="text-[10px] text-emerald-600 font-black mb-0.5">إجمالي المبلغ</div>
             <div className="text-xl font-black text-emerald-700 leading-none">
               {total.toLocaleString()}
-              <span className="text-[10px] mr-2">ج.م</span>
+              <span className="text-[10px] mr-1">ج.م</span>
             </div>
           </div>
         </div>

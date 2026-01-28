@@ -279,11 +279,11 @@ export function TransactionList({
                                     "shrink-0 flex items-center px-2.5 h-8.5 rounded-lg border",
                                     t.amount < 0
                                         ? "bg-red-50 border-red-100"
-                                        : "bg-primary/5 border-primary/10"
+                                        : "bg-emerald-50 border-emerald-100"
                                 )}>
                                     <div className={cn(
                                         "text-[15px] font-black leading-none flex items-baseline",
-                                        t.amount < 0 ? "text-red-600" : "text-primary"
+                                        t.amount < 0 ? "text-red-600" : "text-emerald-600"
                                     )}>
                                         {Math.abs(t.amount).toLocaleString()}
                                         <span className="text-[8px] mr-1 font-bold">ج.م</span>
