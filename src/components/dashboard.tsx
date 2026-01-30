@@ -449,21 +449,23 @@ export function Dashboard({
               <p className="font-black text-xs uppercase tracking-widest text-gray-400">جاري التحميل...</p>
             </div>
           ) : (
-            <TransactionList
-              transactions={transactions}
-              sheetName={currentSheet}
-              onDelete={handleDeleteTransaction}
-              onUpdate={(newList) => {
-                setTransactions(newList);
-                setCachedData(prev => ({ ...prev, [currentSheet]: newList }));
-              }}
-              onAddSuccess={() => {
-                getTransactions(currentSheet).then(data => {
-                  setTransactions(data);
-                  setCachedData(prev => ({ ...prev, [currentSheet]: data }));
-                });
-              }}
-            />
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <TransactionList
+                transactions={transactions}
+                sheetName={currentSheet}
+                onDelete={handleDeleteTransaction}
+                onUpdate={(newList) => {
+                  setTransactions(newList);
+                  setCachedData(prev => ({ ...prev, [currentSheet]: newList }));
+                }}
+                onAddSuccess={() => {
+                  getTransactions(currentSheet).then(data => {
+                    setTransactions(data);
+                    setCachedData(prev => ({ ...prev, [currentSheet]: data }));
+                  });
+                }}
+              />
+            </div>
           )}
           
           {/* Logout Button at Bottom */}
