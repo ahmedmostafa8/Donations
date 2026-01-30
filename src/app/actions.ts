@@ -231,8 +231,14 @@ export async function getTransactions(sheetName: string = "Donation") {
       amount: parseFloat(t.amount) || 0,
       note: t.note,
     }));
-  } catch (error) {
-    console.error("Error fetching transactions:", error);
+  } catch (error: any) {
+    console.error("Error fetching transactions:", {
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+      fullError: error
+    });
     return [];
   }
 }

@@ -53,8 +53,8 @@ export function StatisticsView({
   }, [transactions]);
 
   // 2. Goal Progress
-  const progress = goal > 0 ? (totalIn / goal) * 100 : 0;
-  const remaining = Math.max(0, goal - totalIn);
+  const progress = goal > 0 ? (net / goal) * 100 : 0;
+  const remaining = Math.max(0, goal - net);
 
   // 3. Bar Chart Data (Monthly Trends)
   const monthlyData = useMemo(() => {
@@ -146,8 +146,8 @@ export function StatisticsView({
            </div>
 
            <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 mt-1">
-             <span>تم تجميع:</span>
-             <span className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">{totalIn.toLocaleString()}</span>
+             <span>تم تجميع :</span>
+             <span className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">{net.toLocaleString()}</span>
            </div>
         </div>
 
