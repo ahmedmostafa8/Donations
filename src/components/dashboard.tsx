@@ -2,11 +2,12 @@
 import { useRouter } from "next/navigation";
 
 import { useState, useEffect, useRef } from "react";
-import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut } from "lucide-react";
+import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut, PieChart as PieChartIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StatisticsView } from "./statistics-view";
 import { TransactionList } from "./transaction-list";
 import { supabase } from "@/lib/supabase";
-import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, getCurrentUser, renameSheet } from "@/app/actions";
+import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, getUserProfile, renameSheet } from "@/app/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +44,7 @@ export function Dashboard({
 }) {
   const [currentSheet, setCurrentSheet] = useState(initialSheets[0] || "Donation");
   const [transactions, setTransactions] = useState(initialTransactions);
+  const [viewMode, setViewMode] = useState<'list' | 'stats'>('list');
   const [loading, setLoading] = useState(false);
   const [newTabName, setNewTabName] = useState("");
   const [isCreatingTab, setIsCreatingTab] = useState(false);
@@ -51,6 +53,8 @@ export function Dashboard({
   const [mounted, setMounted] = useState(false);
   const [editingTab, setEditingTab] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [goals, setGoals] = useState<Record<string, number>>({});
+  const [goalsLoading, setGoalsLoading] = useState<Record<string, boolean>>({});
   const longPressTimer = useRef<NodeJS.Timeout>(null);
 
   const handleRenameTab = async () => {
@@ -94,7 +98,9 @@ export function Dashboard({
   // Refresh data when currentSheet changes
   const [username, setUsername] = useState("جاري التحميل...");
   useEffect(() => {
-    getCurrentUser().then(u => setUsername(u || "Unknown"));
+    getUserProfile().then(p => {
+      setUsername(p?.displayName || p?.username || "Unknown");
+    });
   }, []);
 
   const router = useRouter();
@@ -140,6 +146,21 @@ export function Dashboard({
         }
       )
       .subscribe();
+
+    // Parallel Fetch Goal for SPA experience
+    const fetchGoal = async () => {
+      if (goals[currentSheet] === undefined) {
+        setGoalsLoading(prev => ({ ...prev, [currentSheet]: true }));
+        try {
+          const { getCategoryGoal } = await import("@/app/actions");
+          const g = await getCategoryGoal(currentSheet);
+          setGoals(prev => ({ ...prev, [currentSheet]: g }));
+        } finally {
+          setGoalsLoading(prev => ({ ...prev, [currentSheet]: false }));
+        }
+      }
+    };
+    fetchGoal();
 
     return () => {
       supabase.removeChannel(channel);
@@ -218,32 +239,64 @@ export function Dashboard({
     <div className="min-h-screen bg-gray-50 pb-20" suppressHydrationWarning>
 
       {/* ================= HEADER ================= */}
-      <header className="bg-white border-b border-gray-100 px-6 py-6 sticky top-0 z-40 shadow-sm">
+      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-5 sticky top-0 z-40">
         <div className="max-w-xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
-              <Home className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight">إدارة التبرعات</h1>
-              <div className="flex items-center gap-1.5 opacity-60">
-                <p className="text-[11px] font-bold capitalize">بواسطة {username}</p>
-                <div className="w-[1px] h-2 bg-gray-300 mx-1" />
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-1 hover:text-red-500 transition-colors"
-                  title="تسجيل خروج"
-                >
-                  <LogOut className="w-3 h-3" />
-                </button>
+          <div className="flex items-center gap-4">
+            
+            {/* Avatar */}
+            {(() => {
+              if (username === "جاري التحميل...") {
+                return <div className="w-12 h-12 rounded-full bg-gray-200 animate-pulse shrink-0" />;
+              }
+
+              if (username.includes("ادم")) {
+                 return (
+                   <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
+                      <img src="/adam.jpg" alt="Avatar" className="w-full h-full object-cover" />
+                   </div>
+                 );
+              }
+
+              if (username.includes("نسرين")) {
+                 return (
+                   <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
+                      <img src="/nesreen.jpg" alt="Avatar" className="w-full h-full object-cover" />
+                   </div>
+                 );
+              }
+
+              if (username.includes("نور")) {
+                 return (
+                   <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
+                      <img src="/noor.webp" alt="Avatar" className="w-full h-full object-cover" />
+                   </div>
+                 );
+              }
+              
+              // Fallback to Gradient Letter for others (until photos are added)
+              return (
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-gray-200 shrink-0 transform hover:scale-105 transition-transform duration-300">
+                  {username.slice(0, 1)}
+                </div>
+              );
+            })()}
+
+            <div className="space-y-0.5">
+              <h1 className="text-xl font-black text-gray-900 tracking-tight leading-none">
+                مرحباً، {username !== "جاري التحميل..." ? username.split(" ")[0] : "..."} 👋
+              </h1>
+              <div className="flex items-center gap-2">
+                <p className="text-[12px] font-bold text-gray-400">إدارة التبرعـات</p>
+                <div className="w-1 h-1 rounded-full bg-emerald-400 mr-[-5px] animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
               </div>
             </div>
           </div>
-          <div className="text-center bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
-            <div className="text-[10px] text-emerald-600 font-black mb-0.5">إجمالي المبلغ</div>
-            <div className="text-xl font-black text-emerald-700 leading-none">
+
+          <div className="text-center bg-emerald-50/50 px-4 py-2 rounded-2xl border border-emerald-100/50 backdrop-blur-sm">
+            <div className="text-[10px] text-emerald-600 font-black mb-0.5 uppercase tracking-wider opacity-80">إجمالي المبلغ</div>
+            <div className="text-xl font-black text-emerald-600 leading-none tracking-tight">
               {total.toLocaleString()}
-              <span className="text-[10px] mr-1">ج.م</span>
+              <span className="text-[10px] mr-1 opacity-70">ج.م</span>
             </div>
           </div>
         </div>
@@ -253,7 +306,11 @@ export function Dashboard({
         {/* ================= ACTIONS & DATA SECTION ================= */}
         <section className="space-y-6">
           <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-3">
+            <div 
+              className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => setViewMode('list')}
+              title="العودة للسجل"
+            >
               <div className="p-2 bg-primary/5 rounded-lg">
                 <Coins className="w-4 h-4 text-primary" />
               </div>
@@ -261,6 +318,19 @@ export function Dashboard({
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                 onClick={() => setViewMode(prev => prev === 'list' ? 'stats' : 'list')}
+                 className={cn(
+                   "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm",
+                   viewMode === 'stats' 
+                     ? "bg-emerald-500 text-white shadow-emerald-200" 
+                     : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                 )}
+                 title="الإحصائيات"
+               >
+                 <PieChartIcon className="w-4 h-4" />
+               </button>
+
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <button
@@ -280,17 +350,48 @@ export function Dashboard({
                   <AlertDialogFooter className="flex-row-reverse gap-2">
                     <AlertDialogAction onClick={() => {
                       try {
-                        let csvContent = "\uFEFFالتاريخ,الاسم,المبلغ,ملاحظة\n";
+                        // Calculate Summaries
+                        const totalIn = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+                        const totalOut = transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+                        const netTotal = totalIn - totalOut;
+
+                        let csvContent = "\uFEFF";
+                        
+                        // Section 1: Meta Info
+                        csvContent += `Transactions Report\n`;
+                        csvContent += `Sheet Name,${currentSheet}\n`;
+                        csvContent += `User Name,${username !== "جاري التحميل..." ? username : ""}\n`;
+                        csvContent += `Export Date,${new Date().toLocaleDateString('en-US')}\n`;
+                        csvContent += `\n`; // Spacer
+
+                        // Section 2: Dashboard Summary
+                        csvContent += `Dashboard Summary\n`;
+                        csvContent += `Total In,${totalIn}\n`;
+                        csvContent += `Total Out,${totalOut}\n`;
+                        csvContent += `Net Total,${netTotal}\n`;
+                        csvContent += `\n`; // Spacer
+
+                        // Section 3: Details
+                        csvContent += `Transaction Details\n`;
+                        csvContent += `Date,Name,Type,Amount,Note\n`;
+
                         transactions.forEach(row => {
-                          csvContent += `${row.date},${row.name},${row.amount},"${row.note || ""}"\n`;
+                          const type = row.amount >= 0 ? "Income" : "Expense";
+                          const absAmount = Math.abs(row.amount);
+                          // Escape quotes in note
+                          const safeNote = (row.note || "").replace(/"/g, '""');
+                          
+                          csvContent += `${row.date},${row.name},${type},${absAmount},"${safeNote}"\n`;
                         });
+
                         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                         const link = document.createElement("a");
                         link.href = URL.createObjectURL(blob);
-                        link.download = `Donations_${currentSheet}.csv`;
+                        link.download = `Report_${currentSheet}_${new Date().toISOString().split('T')[0]}.csv`;
                         link.click();
                       } catch (e) {
                         console.error(e);
+                        toast.error("Export Failed");
                       }
                     }} className="bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold">تصدير الآن</AlertDialogAction>
                     <AlertDialogCancel className="rounded-xl font-bold">إلغاء</AlertDialogCancel>
@@ -328,7 +429,21 @@ export function Dashboard({
             </div>
           </div>
 
-          {loading ? (
+          {viewMode === 'stats' ? (
+            <StatisticsView 
+              transactions={transactions}
+              currentSheet={currentSheet}
+              goal={goals[currentSheet] || 0}
+              loadingGoal={goalsLoading[currentSheet]}
+              onGoalChange={(newGoal) => {
+                setGoals(prev => ({ ...prev, [currentSheet]: newGoal }));
+                import("@/app/actions").then(({ updateCategoryGoal }) => {
+                  updateCategoryGoal(currentSheet, newGoal);
+                });
+              }}
+              onBack={() => setViewMode('list')}
+            />
+          ) : loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-50">
               <Loader2 className="w-10 h-10 text-primary animate-spin" />
               <p className="font-black text-xs uppercase tracking-widest text-gray-400">جاري التحميل...</p>
@@ -350,6 +465,17 @@ export function Dashboard({
               }}
             />
           )}
+          
+          {/* Logout Button at Bottom */}
+          <div className="pt-8 pb-4">
+            <button
+              onClick={handleLogout}
+              className="w-full bg-red-50 text-red-500 py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-red-100 active:scale-95 transition-all"
+            >
+              <LogOut className="w-5 h-5 stroke-[2.5px]" />
+              تسجيل الخروج
+            </button>
+          </div>
         </section>
       </main>
 

@@ -1,8 +1,6 @@
 
 import type { Metadata, Viewport } from "next";
 import { Vazirmatn } from "next/font/google";
-import { Toaster } from "@/components/ui/sonner";
-import { Loader2 } from "lucide-react";
 import "./globals.css";
 
 const vazir = Vazirmatn({ subsets: ["arabic", "latin"] });

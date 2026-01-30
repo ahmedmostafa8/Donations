@@ -40,6 +40,26 @@ export async function getCurrentUser() {
   return (await cookies()).get("app_user")?.value;
 }
 
+export async function getUserProfile() {
+  const username = (await cookies()).get("app_user")?.value;
+  if (!username) return null;
+
+  try {
+    const { data } = await supabase
+      .from('app_users')
+      .select('display_name')
+      .eq('username', username)
+      .single();
+    
+    return {
+      username,
+      displayName: data?.display_name || username
+    };
+  } catch (e) {
+    return { username, displayName: username };
+  }
+}
+
 export async function getSheets() {
   try {
     const user = await getCurrentUser();
@@ -71,6 +91,45 @@ export async function getSheets() {
   } catch (error) {
     console.error("Error fetching categories:", error);
     return ["Donation"];
+  }
+}
+
+export async function getCategoryGoal(sheetName: string) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return 0;
+
+    const { data, error } = await supabase
+      .from('categories')
+      .select('target_amount')
+      .eq('name', sheetName)
+      .eq('owner_name', user)
+      .single();
+
+    if (error) return 0;
+    return parseFloat(data.target_amount) || 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+export async function updateCategoryGoal(sheetName: string, goal: number) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const { error } = await supabase
+      .from('categories')
+      .update({ target_amount: goal })
+      .eq('name', sheetName)
+      .eq('owner_name', user);
+
+    if (error) throw error;
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating goal:", error);
+    return { success: false };
   }
 }
 
@@ -167,6 +226,7 @@ export async function getTransactions(sheetName: string = "Donation") {
         year: 'numeric', month: '2-digit', day: '2-digit',
         hour: '2-digit', minute: '2-digit'
       }),
+      createdAt: t.created_at,
       name: t.name,
       amount: parseFloat(t.amount) || 0,
       note: t.note,

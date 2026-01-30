@@ -70,3 +70,41 @@
 [dir="rtl"] .flex-row-reverse {
   flex-direction: row-reverse;
 }
+
+@media print {
+  /* Hide everything using visibility 
+     (Display:none on parents hides children, so we can't use that for nested elements) */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Reset body */
+  body {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Show Print Report and its children */
+  .print-container, .print-container * {
+    visibility: visible;
+  }
+
+  /* Position it over everything */
+  .print-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+}
+
+@page {
+  /* Hide default browser headers/footers (URL, Page Number, etc) */
+  margin: 0;
+  size: auto;
+}
