@@ -5,8 +5,11 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid 
 } from "recharts";
-import { TrendingUp, Loader2, Package, Target, Wallet, Sparkles, Hourglass } from "lucide-react";
+import { TrendingUp, Loader2, Package, Target, Wallet, Sparkles, Hourglass, PartyPopper } from "lucide-react";
 import { type UnitGoalSettings } from "@/app/actions";
+import confetti from "canvas-confetti";
+import { useEffect } from "react";
+import { cn } from "@/lib/utils";
 
 interface Transaction {
   id: number;
@@ -58,6 +61,40 @@ export function StatisticsView({
   // 2. Goal Progress
   const progress = goal > 0 ? (net / goal) * 100 : 0;
   const remaining = Math.max(0, goal - net);
+  
+  // Robust Number Parsing (handle "35,000" string case)
+  const safeParse = (val: any) => {
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') return parseFloat(val.replace(/,/g, '')) || 0;
+    return 0;
+  };
+
+  const isGoalReached = safeParse(goal) > 0 && safeParse(net) >= safeParse(goal);
+
+  // 3. Confetti Effect
+  useEffect(() => {
+    if (isGoalReached) {
+      const duration = 3 * 1000;
+      const animationEnd = Date.now() + duration;
+      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+      const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+      const interval: any = setInterval(function() {
+        const timeLeft = animationEnd - Date.now();
+
+        if (timeLeft <= 0) {
+          return clearInterval(interval);
+        }
+
+        const particleCount = 50 * (timeLeft / duration);
+        confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+        confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+      }, 250);
+
+      return () => clearInterval(interval);
+    }
+  }, [isGoalReached]);
 
   // 3. Bar Chart Data (Monthly Trends)
   const monthlyData = useMemo(() => {
@@ -119,19 +156,25 @@ export function StatisticsView({
       {/* 🎯 GOALS SECTION - Animated Premium Design */}
       <div className="space-y-4">
         
-        {/* Hero Card - Animated Violet Theme (Mobile) */}
-        <div className="relative bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 rounded-2xl p-4 text-white overflow-hidden shadow-xl shadow-purple-500/25">
+        {/* Hero Card - Animated Violet Theme (Mobile) OR Gold Success Theme */}
+        <div className={cn(
+          "relative rounded-2xl p-4 text-white overflow-hidden shadow-xl transition-all duration-500",
+          isGoalReached 
+            ? "bg-gradient-to-br from-emerald-500 via-teal-500 to-green-600 shadow-emerald-500/25" 
+            : "bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 shadow-purple-500/25"
+        )}>
           
           {/* Animated background particles */}
           <div className="absolute inset-0 overflow-hidden">
             <div className="absolute top-4 left-4 w-2 h-2 bg-white/30 rounded-full animate-pulse" />
             <div className="absolute top-8 right-8 w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce" style={{ animationDelay: '0.5s' }} />
             <div className="absolute bottom-6 left-1/3 w-1 h-1 bg-white/25 rounded-full animate-ping" style={{ animationDelay: '1s' }} />
+            {isGoalReached && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-yellow-300/20 blur-3xl rounded-full animate-pulse" />}
           </div>
           
           {/* Animated glow orbs */}
-          <div className="absolute -top-8 -left-8 w-24 h-24 bg-pink-400/30 rounded-full blur-2xl animate-pulse" />
-          <div className="absolute -bottom-8 -right-8 w-28 h-28 bg-violet-300/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          <div className={`absolute -top-8 -left-8 w-24 h-24 rounded-full blur-2xl animate-pulse ${isGoalReached ? "bg-yellow-400/30" : "bg-pink-400/30"}`} />
+          <div className={`absolute -bottom-8 -right-8 w-28 h-28 rounded-full blur-3xl animate-pulse ${isGoalReached ? "bg-emerald-300/20" : "bg-violet-300/20"}`} style={{ animationDelay: '1s' }} />
           
 
           
@@ -230,15 +273,23 @@ export function StatisticsView({
               </div>
               
               {/* Stats Row with Icons */}
-              <div className="flex justify-between text-xs font-bold">
-                <div className="flex items-center gap-1 text-white/80 bg-white/10 rounded-lg px-2 py-1">
+              <div className="flex justify-between text-xs font-bold mt-2">
+                <div className="flex items-center gap-1 text-white/90 bg-white/10 rounded-lg px-2 py-1 backdrop-blur-sm">
                   <TrendingUp className="w-3 h-3" />
                   <span>تم جمع {net.toLocaleString()}</span>
                 </div>
-                <div className="flex items-center gap-1 text-white/80 bg-white/10 rounded-lg px-2 py-1">
-                  <Hourglass className="w-3 h-3" />
-                  <span>باقي {remaining > 0 ? remaining.toLocaleString() : '0'}</span>
-                </div>
+                
+                {isGoalReached ? (
+                  <div className="flex items-center gap-1 text-white bg-emerald-500/20 rounded-lg px-2 py-1 backdrop-blur-md border border-white/20 shadow-sm">
+                    <PartyPopper className="w-3.5 h-3.5 text-yellow-300" />
+                    <span className="font-extrabold text-yellow-100">مبروك! الهدف مكتمل 🎉</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-white/80 bg-white/10 rounded-lg px-2 py-1">
+                    <Hourglass className="w-3 h-3" />
+                    <span>باقي {remaining > 0 ? remaining.toLocaleString() : '0'}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
