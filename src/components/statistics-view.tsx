@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid 
 } from "recharts";
-import { TrendingUp, Target, Wallet, AlertCircle, Calendar, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { getCategoryGoal, updateCategoryGoal } from "@/app/actions";
+import { TrendingUp, Loader2, Package, Target, Wallet, Sparkles, Hourglass } from "lucide-react";
+import { type UnitGoalSettings } from "@/app/actions";
 
 interface Transaction {
   id: number;
@@ -25,6 +24,8 @@ interface StatisticsViewProps {
   loadingGoal?: boolean;
   onGoalChange: (newGoal: number) => void;
   onBack: () => void;
+  unitGoal: UnitGoalSettings;
+  onUnitGoalChange: (settings: UnitGoalSettings) => void;
 }
 
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'];
@@ -35,7 +36,9 @@ export function StatisticsView({
   goal, 
   loadingGoal, 
   onGoalChange, 
-  onBack 
+  onBack,
+  unitGoal,
+  onUnitGoalChange
 }: StatisticsViewProps) {
   // --- No internal state for goal, managed by parent for SPA feel ---
 
@@ -113,78 +116,188 @@ export function StatisticsView({
         </h2>
       </div>
 
-      {/* Goal Section */}
-      {/* Goal Section - Compact Horizontal */}
-      <div className="bg-white p-4 rounded-2xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] border border-gray-100 flex items-center justify-between relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+      {/* 🎯 GOALS SECTION - Animated Premium Design */}
+      <div className="space-y-4">
         
-        {/* Right Side: Input & Collected */}
-        <div className="flex flex-col gap-1 z-10 w-full">
-           <div className="flex items-center gap-1.5 mb-1">
-             <div className="p-1.5 bg-emerald-50 rounded-lg">
-               <Target className="w-3.5 h-3.5 text-emerald-600" />
-             </div>
-             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">هدفي المالي</span>
-             {loadingGoal && <Loader2 className="w-3 h-3 text-emerald-400 animate-spin ml-1" />}
-           </div>
-           
-           <div className="relative group/input w-fit">
-             <input 
-               type="text" 
-               inputMode="numeric"
-               value={goal === 0 ? "" : goal.toLocaleString()}
-               onChange={(e) => {
-                 const rawValue = e.target.value.replace(/,/g, '');
-                 if (/^\d*$/.test(rawValue)) {
-                   onGoalChange(parseFloat(rawValue) || 0);
-                 }
-               }}
-               placeholder="0"
-               className="w-32 bg-transparent font-black text-3xl text-gray-800 placeholder:text-gray-200 outline-none transition-all p-0"
-             />
-             <span className="text-[10px] font-bold text-gray-400 absolute -left-16 bottom-1.5 pointer-events-none whitespace-nowrap">جُنَيْه مِصْرِيّ</span>
-           </div>
+        {/* Hero Card - Animated Violet Theme (Mobile) */}
+        <div className="relative bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 rounded-2xl p-4 text-white overflow-hidden shadow-xl shadow-purple-500/25">
+          
+          {/* Animated background particles */}
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute top-4 left-4 w-2 h-2 bg-white/30 rounded-full animate-pulse" />
+            <div className="absolute top-8 right-8 w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce" style={{ animationDelay: '0.5s' }} />
+            <div className="absolute bottom-6 left-1/3 w-1 h-1 bg-white/25 rounded-full animate-ping" style={{ animationDelay: '1s' }} />
+          </div>
+          
+          {/* Animated glow orbs */}
+          <div className="absolute -top-8 -left-8 w-24 h-24 bg-pink-400/30 rounded-full blur-2xl animate-pulse" />
+          <div className="absolute -bottom-8 -right-8 w-28 h-28 bg-violet-300/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          
 
-           <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 mt-1">
-             <span>تم تجميع :</span>
-             <span className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">{net.toLocaleString()}</span>
-           </div>
-        </div>
+          
+          <div className="relative flex items-center gap-4">
+            {/* Content - Right side in RTL (first in code) */}
+            <div className="flex-1 space-y-1">
+              {/* Row 1: الهدف المالي */}
+              <div className="flex items-center gap-2">
+                <span className="text-white/90 text-xs font-bold">الهدف المالي</span>
+                <div className="w-6 h-6 rounded-lg bg-white/20 backdrop-blur flex items-center justify-center animate-pulse">
+                  <Target className="w-3 h-3" />
+                </div>
+              </div>
+              
+              {/* Row 2: Amount */}
+              <div className="text-[32px] font-black leading-none tracking-tight">
+                {(goal > 0 ? goal : net).toLocaleString()}
+              </div>
+              <div className="text-white/70 text-xs font-semibold flex items-center gap-1">
+                <Wallet className="w-3 h-3" />
+                <span>جنيه مصري</span>
+              </div>
+            </div>
+            
+            {/* Animated Progress Circle - LIVE Design (No Box) */}
+            <div className="relative w-[72px] h-[72px] shrink-0">
+              {/* Rotating outer ring - SVG based */}
+              <div className="absolute inset-0 animate-spin" style={{ animationDuration: '8s' }}>
+                <svg className="w-full h-full" viewBox="0 0 36 36">
+                  <path 
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
+                    fill="none" 
+                    stroke="white" 
+                    strokeWidth="0.5" 
+                    strokeDasharray="4, 6"
+                    className="opacity-30"
+                  />
+                </svg>
+              </div>
 
-        {/* Left Side: Circular Progress */}
-        <div className="flex flex-col items-center gap-1 z-10 shrink-0">
-          <div className="relative w-14 h-14">
-            {/* SVG Ring */}
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-              {/* Background Circle */}
-              <path
-                className="text-gray-100"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3.5"
-              />
-              {/* Progress Circle */}
-              <path
-                className="text-emerald-500 drop-shadow-sm transition-all duration-1000 ease-out"
-                strokeDasharray={`${Math.min(progress, 100)}, 100`}
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-              <span className="text-[10px] font-black text-gray-700">{progress.toFixed(0)}%</span>
+              {/* Inner Circle */}
+              <svg className="w-full h-full -rotate-90 relative" viewBox="0 0 36 36">
+                {/* Background track */}
+                <circle 
+                  className="text-white/10" 
+                  cx="18" cy="18" r="14" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                />
+                {/* Progress arc */}
+                <circle 
+                  className="text-white" 
+                  cx="18" cy="18" r="14" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2.5" 
+                  strokeLinecap="round"
+                  strokeDasharray={`${Math.min(progress, 100) * 0.88}, 100`}
+                  style={{ 
+                    transition: 'stroke-dasharray 1s ease-out',
+                    filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.5))'
+                  }}
+                />
+                
+                {/* Glowing dot at tip */}
+                 <circle 
+                  cx="18" cy="4" r="1.5"
+                  fill="white"
+                  className="animate-pulse origin-center"
+                  style={{ 
+                    transform: `rotate(${Math.min(progress, 100) * 3.6}deg)`,
+                    transformOrigin: '18px 18px'
+                  }}
+                />
+              </svg>
+              
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-base font-black animate-pulse" style={{ animationDuration: '3s' }}>
+                  {progress.toFixed(0)}%
+                </span>
+              </div>
             </div>
           </div>
           
-          <div className="text-[9px] font-bold text-gray-400 text-center">
-            <span>باقي </span>
-            <span className="text-rose-500">{remaining.toLocaleString()}</span>
-          </div>
+          {/* Animated Progress Bar */}
+          {goal > 0 && (
+            <div className="space-y-2 mt-4">
+              <div className="h-2.5 bg-black/20 rounded-full overflow-hidden backdrop-blur-sm">
+                <div 
+                  className="h-full bg-gradient-to-r from-pink-300 via-white to-violet-200 rounded-full transition-all duration-1000 ease-out relative"
+                  style={{ width: `${Math.min(progress, 100)}%` }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-pulse" />
+                </div>
+              </div>
+              
+              {/* Stats Row with Icons */}
+              <div className="flex justify-between text-xs font-bold">
+                <div className="flex items-center gap-1 text-white/80 bg-white/10 rounded-lg px-2 py-1">
+                  <TrendingUp className="w-3 h-3" />
+                  <span>تم جمع {net.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-1 text-white/80 bg-white/10 rounded-lg px-2 py-1">
+                  <Hourglass className="w-3 h-3" />
+                  <span>باقي {remaining > 0 ? remaining.toLocaleString() : '0'}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Unit Tracking Card */}
+        {unitGoal.enabled && unitGoal.unitPrice > 0 && (() => {
+          const completed = Math.floor(net / unitGoal.unitPrice);
+          const remaining = Math.max(0, unitGoal.unitTarget - completed);
+          const pct = unitGoal.unitTarget > 0 ? (completed / unitGoal.unitTarget) * 100 : 0;
+          
+          return (
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100/80">
+              {/* Minimal Unit Tracking Card */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                    <Package className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-gray-900">{unitGoal.unitName}</div>
+                    <div className="text-[10px] font-medium text-gray-400">
+                      {unitGoal.unitPrice.toLocaleString()} ج.م / {unitGoal.unitName}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center">
+                  <div className="text-[10px] font-bold text-gray-400 mb-0.5">الهدف</div>
+                  <div className="text-2xl font-black text-gray-900 leading-none">{unitGoal.unitTarget}</div>
+                </div>
+              </div>
+
+              {/* Sleek Progress Bar */}
+              <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
+                <div 
+                  className="absolute inset-y-0 right-0 bg-gradient-to-l from-orange-400 to-amber-500 rounded-full transition-all duration-1000"
+                  style={{ width: `${Math.min(pct, 100)}%` }}
+                />
+              </div>
+
+              {/* Mini Stats Footer - Cards */}
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                {/* Collected Card - Green */}
+                <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2 flex flex-col items-center justify-center text-center">
+                  <div className="text-emerald-700 font-bold text-xs">
+                    تم تجميع {completed} {unitGoal.unitName}
+                  </div>
+                </div>
+
+                {/* Remaining Card - Red */}
+                <div className="bg-red-50 border border-red-100 rounded-lg p-2 flex flex-col items-center justify-center text-center">
+                  <div className="text-red-700 font-bold text-xs">
+                    فاضل {remaining}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Summary Cards */}

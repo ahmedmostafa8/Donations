@@ -2,12 +2,12 @@
 import { useRouter } from "next/navigation";
 
 import { useState, useEffect, useRef } from "react";
-import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut, PieChart as PieChartIcon } from "lucide-react";
+import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut, PieChart as PieChartIcon, Settings, Wallet, Target, Package, DollarSign, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatisticsView } from "./statistics-view";
 import { TransactionList } from "./transaction-list";
 import { supabase } from "@/lib/supabase";
-import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, getUserProfile, renameSheet } from "@/app/actions";
+import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, getUserProfile, renameSheet, type UnitGoalSettings } from "@/app/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,7 +44,7 @@ export function Dashboard({
 }) {
   const [currentSheet, setCurrentSheet] = useState(initialSheets[0] || "Donation");
   const [transactions, setTransactions] = useState(initialTransactions);
-  const [viewMode, setViewMode] = useState<'list' | 'stats'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'stats' | 'settings'>('list');
   const [loading, setLoading] = useState(false);
   const [newTabName, setNewTabName] = useState("");
   const [isCreatingTab, setIsCreatingTab] = useState(false);
@@ -55,6 +55,7 @@ export function Dashboard({
   const [renameValue, setRenameValue] = useState("");
   const [goals, setGoals] = useState<Record<string, number>>({});
   const [goalsLoading, setGoalsLoading] = useState<Record<string, boolean>>({});
+  const [unitGoals, setUnitGoals] = useState<Record<string, UnitGoalSettings>>({});
   const longPressTimer = useRef<NodeJS.Timeout>(null);
 
   const handleRenameTab = async () => {
@@ -161,6 +162,20 @@ export function Dashboard({
       }
     };
     fetchGoal();
+
+    // Fetch Unit Goal
+    const fetchUnitGoal = async () => {
+      if (unitGoals[currentSheet] === undefined) {
+        try {
+          const { getUnitGoal } = await import("@/app/actions");
+          const ug = await getUnitGoal(currentSheet);
+          setUnitGoals(prev => ({ ...prev, [currentSheet]: ug }));
+        } catch (e) {
+          console.error("Error fetching unit goal:", e);
+        }
+      }
+    };
+    fetchUnitGoal();
 
     return () => {
       supabase.removeChannel(channel);
@@ -305,21 +320,21 @@ export function Dashboard({
       <main className="max-w-xl mx-auto px-6 py-4 pb-24 space-y-6 text-right">
         {/* ================= ACTIONS & DATA SECTION ================= */}
         <section className="space-y-6">
-          <div className="flex items-center justify-between px-1">
-            <div 
-              className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+          <div className="flex items-center justify-center gap-2 px-1">
+            <button
               onClick={() => setViewMode('list')}
-              title="العودة للسجل"
+              className={cn(
+                "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm",
+                viewMode === 'list'
+                  ? "bg-primary text-white shadow-primary/30"
+                  : "bg-gray-50 text-gray-400 hover:bg-gray-100"
+              )}
+              title="الرئيسية"
             >
-              <div className="p-2 bg-primary/5 rounded-lg">
-                <Coins className="w-4 h-4 text-primary" />
-              </div>
-              <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">سجل العمليات</h2>
-            </div>
-
-            <div className="flex items-center gap-2">
+              <Home className="w-4 h-4" />
+            </button>
               <button
-                 onClick={() => setViewMode(prev => prev === 'list' ? 'stats' : 'list')}
+                 onClick={() => setViewMode(prev => prev === 'stats' ? 'list' : 'stats')}
                  className={cn(
                    "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm",
                    viewMode === 'stats' 
@@ -331,102 +346,19 @@ export function Dashboard({
                  <PieChartIcon className="w-4 h-4" />
                </button>
 
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <button
-                    className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center hover:bg-indigo-100 transition-colors shadow-sm"
-                    title="تصدير CSV"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="text-right rounded-2xl">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="text-right">تصدير البيانات؟</AlertDialogTitle>
-                    <AlertDialogDescription className="text-right">
-                      هل تريد تحميل كافة العمليات في ملف CSV؟
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter className="flex-row-reverse gap-2">
-                    <AlertDialogAction onClick={() => {
-                      try {
-                        // Calculate Summaries
-                        const totalIn = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
-                        const totalOut = transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
-                        const netTotal = totalIn - totalOut;
+              <button
+                 onClick={() => setViewMode(prev => prev === 'settings' ? 'list' : 'settings')}
+                 className={cn(
+                   "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm",
+                   viewMode === 'settings' 
+                     ? "bg-amber-500 text-white shadow-amber-200" 
+                     : "bg-amber-50 text-amber-600 hover:bg-amber-100"
+                 )}
+                 title="الإعدادات"
+               >
+                 <Settings className="w-4 h-4" />
+               </button>
 
-                        let csvContent = "\uFEFF";
-                        
-                        // Section 1: Meta Info
-                        csvContent += `Transactions Report\n`;
-                        csvContent += `Sheet Name,${currentSheet}\n`;
-                        csvContent += `User Name,${username !== "جاري التحميل..." ? username : ""}\n`;
-                        csvContent += `Export Date,${new Date().toLocaleDateString('en-US')}\n`;
-                        csvContent += `\n`; // Spacer
-
-                        // Section 2: Dashboard Summary
-                        csvContent += `Dashboard Summary\n`;
-                        csvContent += `Total In,${totalIn}\n`;
-                        csvContent += `Total Out,${totalOut}\n`;
-                        csvContent += `Net Total,${netTotal}\n`;
-                        csvContent += `\n`; // Spacer
-
-                        // Section 3: Details
-                        csvContent += `Transaction Details\n`;
-                        csvContent += `Date,Name,Type,Amount,Note\n`;
-
-                        transactions.forEach(row => {
-                          const type = row.amount >= 0 ? "Income" : "Expense";
-                          const absAmount = Math.abs(row.amount);
-                          // Escape quotes in note
-                          const safeNote = (row.note || "").replace(/"/g, '""');
-                          
-                          csvContent += `${row.date},${row.name},${type},${absAmount},"${safeNote}"\n`;
-                        });
-
-                        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                        const link = document.createElement("a");
-                        link.href = URL.createObjectURL(blob);
-                        link.download = `Report_${currentSheet}_${new Date().toISOString().split('T')[0]}.csv`;
-                        link.click();
-                      } catch (e) {
-                        console.error(e);
-                        toast.error("Export Failed");
-                      }
-                    }} className="bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold">تصدير الآن</AlertDialogAction>
-                    <AlertDialogCancel className="rounded-xl font-bold">إلغاء</AlertDialogCancel>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <button className="w-9 h-9 bg-red-50 text-red-600 rounded-lg flex items-center justify-center hover:bg-red-100 transition-colors shadow-sm" title="حذف الكل">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="text-right rounded-2xl">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="text-right">تأكيد الحذف</AlertDialogTitle>
-                    <AlertDialogDescription className="text-right">
-                      سيتم حذف كافة العمليات في "{currentSheet}". لا يمكن التراجع.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter className="flex-row-reverse gap-2">
-                    <AlertDialogAction className="bg-red-600 hover:bg-red-700 rounded-xl font-bold" onClick={async () => {
-                      const prevTransactions = [...transactions];
-                      setTransactions([]);
-                      setCachedData(prev => ({ ...prev, [currentSheet]: [] }));
-                      try {
-                        const res = await clearAllTransactions(currentSheet);
-                        if (!res?.success) setTransactions(prevTransactions);
-                      } catch (e) { setTransactions(prevTransactions); }
-                    }}>نعم، امسح الكل</AlertDialogAction>
-                    <AlertDialogCancel className="rounded-xl font-bold">إلغاء</AlertDialogCancel>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
           </div>
 
           {viewMode === 'stats' ? (
@@ -435,14 +367,283 @@ export function Dashboard({
               currentSheet={currentSheet}
               goal={goals[currentSheet] || 0}
               loadingGoal={goalsLoading[currentSheet]}
-              onGoalChange={(newGoal) => {
-                setGoals(prev => ({ ...prev, [currentSheet]: newGoal }));
-                import("@/app/actions").then(({ updateCategoryGoal }) => {
-                  updateCategoryGoal(currentSheet, newGoal);
-                });
-              }}
+              onGoalChange={() => {}} // View only - no changes
               onBack={() => setViewMode('list')}
+              unitGoal={unitGoals[currentSheet] || { enabled: false, unitName: '', unitPrice: 0, unitTarget: 0 }}
+              onUnitGoalChange={() => {}} // View only - no changes
             />
+          ) : viewMode === 'settings' ? (
+            <div className="space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-black text-gray-800 flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-amber-500" />
+                  الإعدادات
+                </h2>
+              </div>
+
+              {/* Goals Card */}
+              <div className="bg-white p-5 rounded-2xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] border border-gray-100 space-y-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <span className="text-lg">🎯</span>
+                  </div>
+                  <h3 className="font-black text-gray-800">أهداف التبرع</h3>
+                </div>
+
+                {/* 4 Inputs Grid */}
+                <div className="grid grid-cols-2 gap-5">
+                  {/* Financial Goal */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
+                      <Wallet className="w-3.5 h-3.5 text-emerald-500" />
+                      الهدف المالي
+                    </label>
+                    <div className="relative group">
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500 transition-colors pointer-events-none">
+                        <DollarSign className="w-5 h-5" />
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={(goals[currentSheet] || 0) === 0 ? "" : (goals[currentSheet] || 0).toLocaleString()}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/,/g, '');
+                          if (/^\d*$/.test(raw)) {
+                            const newGoal = parseFloat(raw) || 0;
+                            setGoals(prev => ({ ...prev, [currentSheet]: newGoal }));
+                            import("@/app/actions").then(({ updateCategoryGoal }) => {
+                              updateCategoryGoal(currentSheet, newGoal);
+                            });
+                          }
+                        }}
+                        placeholder="90,000"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl pr-10 pl-4 py-3 font-bold text-sm text-gray-800 placeholder:text-gray-300 outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 transition-all text-right"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Unit Target */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-rose-500" />
+                      هدف الوحدة
+                    </label>
+                    <div className="relative group">
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-rose-500 transition-colors pointer-events-none">
+                         <Target className="w-5 h-5" />
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={(unitGoals[currentSheet]?.unitTarget || 0) === 0 ? '' : unitGoals[currentSheet]?.unitTarget}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/,/g, '');
+                          if (/^\d*$/.test(raw)) {
+                            const current = unitGoals[currentSheet] || { enabled: true, unitName: '', unitPrice: 0, unitTarget: 0 };
+                            const newVal = parseInt(raw) || 0;
+                            const isEnabled = newVal > 0 || current.unitName.trim() !== '' || current.unitPrice > 0;
+                            const updated = { ...current, unitTarget: newVal, enabled: isEnabled };
+                            setUnitGoals(prev => ({ ...prev, [currentSheet]: updated }));
+                            import("@/app/actions").then(({ updateUnitGoal }) => {
+                              updateUnitGoal(currentSheet, updated);
+                            });
+                          }
+                        }}
+                        placeholder="50"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl pr-10 pl-4 py-3 font-bold text-sm text-gray-800 placeholder:text-gray-300 outline-none focus:border-rose-400 focus:ring-4 focus:ring-rose-50 transition-all text-right"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Unit Name */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
+                      <Package className="w-3.5 h-3.5 text-amber-500" />
+                      اسم الوحدة
+                    </label>
+                    <div className="relative group">
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-amber-500 transition-colors pointer-events-none">
+                        <Package className="w-5 h-5" />
+                      </div>
+                      <input
+                        type="text"
+                        value={unitGoals[currentSheet]?.unitName || ''}
+                        onChange={(e) => {
+                          const current = unitGoals[currentSheet] || { enabled: true, unitName: '', unitPrice: 0, unitTarget: 0 };
+                          const newVal = e.target.value;
+                          const isEnabled = newVal.trim() !== '' || current.unitPrice > 0 || current.unitTarget > 0;
+                          const updated = { ...current, unitName: newVal, enabled: isEnabled };
+                          setUnitGoals(prev => ({ ...prev, [currentSheet]: updated }));
+                          import("@/app/actions").then(({ updateUnitGoal }) => {
+                            updateUnitGoal(currentSheet, updated);
+                          });
+                        }}
+                        placeholder="شنطة"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl pr-10 pl-4 py-3 font-bold text-sm text-gray-800 placeholder:text-gray-300 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 transition-all text-right"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Unit Price */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
+                      <Coins className="w-3.5 h-3.5 text-blue-500" />
+                      سعر الوحدة
+                    </label>
+                    <div className="relative group">
+                       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                        <Coins className="w-5 h-5" />
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={(unitGoals[currentSheet]?.unitPrice || 0) === 0 ? '' : unitGoals[currentSheet]?.unitPrice}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/,/g, '');
+                          if (/^\d*$/.test(raw)) {
+                            const current = unitGoals[currentSheet] || { enabled: true, unitName: '', unitPrice: 0, unitTarget: 0 };
+                            const newVal = parseFloat(raw) || 0;
+                            const isEnabled = newVal > 0 || current.unitName.trim() !== '' || current.unitTarget > 0;
+                            const updated = { ...current, unitPrice: newVal, enabled: isEnabled };
+                            setUnitGoals(prev => ({ ...prev, [currentSheet]: updated }));
+                            import("@/app/actions").then(({ updateUnitGoal }) => {
+                              updateUnitGoal(currentSheet, updated);
+                            });
+                          }
+                        }}
+                        placeholder="250"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl pr-10 pl-4 py-3 font-bold text-sm text-gray-800 placeholder:text-gray-300 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 transition-all text-right"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Data Management Card */}
+              <div className="bg-white p-5 rounded-2xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] border border-gray-100 space-y-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <Database className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <h3 className="font-black text-gray-800">إدارة البيانات</h3>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Export Button */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button className="w-full bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 p-4 rounded-xl flex items-center justify-between group transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                            <Download className="w-5 h-5" />
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-sm">تصدير البيانات (CSV)</div>
+                            <div className="text-[10px] text-indigo-400 font-semibold">تحميل نسخة من العمليات</div>
+                          </div>
+                        </div>
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="text-right rounded-2xl">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="text-right">تصدير البيانات؟</AlertDialogTitle>
+                        <AlertDialogDescription className="text-right">
+                          هل تريد تحميل كافة العمليات في ملف CSV؟
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="flex-row-reverse gap-2">
+                        <AlertDialogAction onClick={() => {
+                          try {
+                            // Calculate Summaries
+                            const totalIn = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+                            const totalOut = transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+                            const netTotal = totalIn - totalOut;
+
+                            let csvContent = "\uFEFF";
+                            
+                            // Section 1: Meta Info
+                            csvContent += `Transactions Report\n`;
+                            csvContent += `Sheet Name,${currentSheet}\n`;
+                            csvContent += `User Name,${username !== "جاري التحميل..." ? username : ""}\n`;
+                            csvContent += `Export Date,${new Date().toLocaleDateString('en-US')}\n`;
+                            csvContent += `\n`; // Spacer
+
+                            // Section 2: Dashboard Summary
+                            csvContent += `Dashboard Summary\n`;
+                            csvContent += `Total In,${totalIn}\n`;
+                            csvContent += `Total Out,${totalOut}\n`;
+                            csvContent += `Net Total,${netTotal}\n`;
+                            csvContent += `\n`; // Spacer
+
+                            // Section 3: Details
+                            csvContent += `Transaction Details\n`;
+                            csvContent += `Date,Name,Type,Amount,Note\n`;
+
+                            transactions.forEach(row => {
+                              const type = row.amount >= 0 ? "Income" : "Expense";
+                              const absAmount = Math.abs(row.amount);
+                              // Escape quotes in note
+                              const safeNote = (row.note || "").replace(/"/g, '""');
+                              
+                              csvContent += `${row.date},${row.name},${type},${absAmount},"${safeNote}"\n`;
+                            });
+
+                            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                            const link = document.createElement("a");
+                            link.href = URL.createObjectURL(blob);
+                            link.download = `Report_${currentSheet}_${new Date().toISOString().split('T')[0]}.csv`;
+                            link.click();
+                          } catch (e) {
+                            console.error(e);
+                            toast.error("Export Failed");
+                          }
+                        }} className="bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold">تصدير الآن</AlertDialogAction>
+                        <AlertDialogCancel className="rounded-xl font-bold">إلغاء</AlertDialogCancel>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+
+                  {/* Delete Button */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button className="w-full bg-red-50 border border-red-100 hover:bg-red-100 text-red-700 p-4 rounded-xl flex items-center justify-between group transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                            <Trash2 className="w-5 h-5" />
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-sm">مسح كافة البيانات</div>
+                            <div className="text-[10px] text-red-400 font-semibold">حذف نهائي لجميع العمليات</div>
+                          </div>
+                        </div>
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="text-right rounded-2xl">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="text-right">تأكيد الحذف</AlertDialogTitle>
+                        <AlertDialogDescription className="text-right">
+                          سيتم حذف كافة العمليات في "{currentSheet}". لا يمكن التراجع.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="flex-row-reverse gap-2">
+                        <AlertDialogAction className="bg-red-600 hover:bg-red-700 rounded-xl font-bold" onClick={async () => {
+                          const prevTransactions = [...transactions];
+                          setTransactions([]);
+                          setCachedData(prev => ({ ...prev, [currentSheet]: [] }));
+                          try {
+                            const res = await clearAllTransactions(currentSheet);
+                            if (!res?.success) setTransactions(prevTransactions);
+                          } catch (e) { setTransactions(prevTransactions); }
+                        }}>نعم، امسح الكل</AlertDialogAction>
+                        <AlertDialogCancel className="rounded-xl font-bold">إلغاء</AlertDialogCancel>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+
+            </div>
           ) : loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-50">
               <Loader2 className="w-10 h-10 text-primary animate-spin" />

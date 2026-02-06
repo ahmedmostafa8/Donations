@@ -133,6 +133,64 @@ export async function updateCategoryGoal(sheetName: string, goal: number) {
   }
 }
 
+// Unit Goal Types & Actions
+export interface UnitGoalSettings {
+  enabled: boolean;
+  unitName: string;
+  unitPrice: number;
+  unitTarget: number;
+}
+
+export async function getUnitGoal(sheetName: string): Promise<UnitGoalSettings> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { enabled: false, unitName: '', unitPrice: 0, unitTarget: 0 };
+
+    const { data, error } = await supabase
+      .from('categories')
+      .select('unit_enabled, unit_name, unit_price, unit_target')
+      .eq('name', sheetName)
+      .eq('owner_name', user)
+      .single();
+
+    if (error) return { enabled: false, unitName: '', unitPrice: 0, unitTarget: 0 };
+    
+    return {
+      enabled: data.unit_enabled ?? false,
+      unitName: data.unit_name ?? '',
+      unitPrice: parseFloat(data.unit_price) || 0,
+      unitTarget: parseInt(data.unit_target) || 0,
+    };
+  } catch (e) {
+    return { enabled: false, unitName: '', unitPrice: 0, unitTarget: 0 };
+  }
+}
+
+export async function updateUnitGoal(sheetName: string, settings: UnitGoalSettings) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const { error } = await supabase
+      .from('categories')
+      .update({
+        unit_enabled: settings.enabled,
+        unit_name: settings.unitName,
+        unit_price: settings.unitPrice,
+        unit_target: settings.unitTarget,
+      })
+      .eq('name', sheetName)
+      .eq('owner_name', user);
+
+    if (error) throw error;
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating unit goal:", error);
+    return { success: false };
+  }
+}
+
 export async function createSheet(sheetName: string) {
   try {
     const user = await getCurrentUser();
