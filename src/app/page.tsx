@@ -1,12 +1,18 @@
-
-import { getTransactions, getSheets } from "./actions";
-import { Dashboard } from "@/components/dashboard";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { getUserProfile } from "./actions";
+import { AppSelector } from "@/components/app-selector";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const sheets = await getSheets();
-  const initialTransactions = await getTransactions(sheets[0] || "Donation");
+  // Server-side auth check
+  const cookieStore = await cookies();
+  const user = cookieStore.get("app_user")?.value;
+  if (!user) redirect("/login");
 
-  return <Dashboard initialSheets={sheets} initialTransactions={initialTransactions} />;
+  const userProfile = await getUserProfile();
+  const username = userProfile?.displayName || userProfile?.username || "User";
+
+  return <AppSelector username={username} />;
 }

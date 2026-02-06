@@ -52,60 +52,81 @@ export function TransactionList({
         setIsAdding(false);
     };
 
-    const handleSaveEdit = async () => {
+    const handleSaveEdit = () => {
         if (!editData || !sheetName) return;
-        setIsBusy(true);
 
         const originalTransactions = [...transactions];
         const updatedTransactions = transactions.map(t =>
             t.id === editingId ? { ...t, ...editData, amount: parseFloat(editData.amount) || 0 } : t
         );
+        
+        // Optimistic UI: update immediately and close edit mode
         if (onUpdate) onUpdate(updatedTransactions as any);
+        const savedEditingId = editingId;
+        setEditingId(null);
 
-        try {
-            const res = await updateTransaction(sheetName, editingId!, {
-                name: editData.name,
-                amount: editData.amount.toString(),
-                note: editData.note || ""
-            });
-            if (res.success) {
-                setEditingId(null);
-            } else {
-                if (onUpdate) onUpdate(originalTransactions);
+        // Save in background (no waiting)
+        updateTransaction(sheetName, savedEditingId!, {
+            name: editData.name,
+            amount: editData.amount.toString(),
+            note: editData.note || ""
+        }).then(res => {
+            if (!res.success && onUpdate) {
+                // Rollback on error
+                onUpdate(originalTransactions);
             }
-        } catch (e) {
+        }).catch(() => {
             if (onUpdate) onUpdate(originalTransactions);
-        } finally {
-            setIsBusy(false);
-        }
+        });
     };
 
     const handleSaveAdd = async () => {
         if (!newData.name || !newData.amount || !sheetName) return;
-        setIsBusy(true);
-
-        const formData = new FormData();
-        formData.append("name", newData.name);
-
+        
         // Handle negative amount if 'deduct' is selected
         const amountValue = Math.abs(parseFloat(newData.amount) || 0);
         const finalAmount = transactionType === "deduct" ? -amountValue : amountValue;
 
+        // Create optimistic transaction (appears instantly)
+        const optimisticTransaction: Transaction = {
+            id: Date.now(), // Temporary ID
+            date: new Date().toLocaleString('ar-EG', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            }),
+            name: newData.name,
+            amount: finalAmount,
+            note: newData.note
+        };
+
+        // Immediately add to UI (optimistic update)
+        if (onUpdate) {
+            onUpdate([optimisticTransaction, ...transactions]);
+        }
+
+        // Reset form immediately for snappy UX
+        setNewData({ name: "", amount: "", note: "" });
+        setTransactionType("add");
+        setIsAdding(false);
+
+        // Save in background (no waiting)
+        const formData = new FormData();
+        formData.append("name", optimisticTransaction.name);
         formData.append("amount", finalAmount.toString());
-        formData.append("note", newData.note);
+        formData.append("note", optimisticTransaction.note);
 
         try {
             const res = await addTransaction(formData, sheetName);
-            if (res.success) {
-                setNewData({ name: "", amount: "", note: "" });
-                setTransactionType("add"); // Reset type
-                setIsAdding(false);
-                if (onAddSuccess) onAddSuccess();
+            if (res.success && onAddSuccess) {
+                // Sync with server to get real ID
+                onAddSuccess();
             }
         } catch (e) {
             console.error(e);
-        } finally {
-            setIsBusy(false);
+            // Rollback on error (remove optimistic item)
+            if (onUpdate) {
+                onUpdate(transactions.filter(t => t.id !== optimisticTransaction.id));
+            }
         }
     };
 

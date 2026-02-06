@@ -2,12 +2,12 @@
 import { useRouter } from "next/navigation";
 
 import { useState, useEffect, useRef } from "react";
-import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut, PieChart as PieChartIcon, Settings, Wallet, Target, Package, DollarSign, Database } from "lucide-react";
+import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut, PieChart as PieChartIcon, Settings, Wallet, Target, Package, DollarSign, Database, Grid3X3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatisticsView } from "./statistics-view";
 import { TransactionList } from "./transaction-list";
 import { supabase } from "@/lib/supabase";
-import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, getUserProfile, renameSheet, type UnitGoalSettings } from "@/app/actions";
+import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, renameSheet, type UnitGoalSettings } from "@/app/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,12 +37,19 @@ import { toast } from "sonner";
 
 export function Dashboard({
   initialSheets,
-  initialTransactions
+  initialTransactions,
+  initialGoal,
+  initialUnitGoal,
+  initialUsername
 }: {
   initialSheets: string[],
-  initialTransactions: any[]
+  initialTransactions: any[],
+  initialGoal: number,
+  initialUnitGoal: any,
+  initialUsername: string
 }) {
-  const [currentSheet, setCurrentSheet] = useState(initialSheets[0] || "Donation");
+  const firstSheet = initialSheets[0] || "Donation";
+  const [currentSheet, setCurrentSheet] = useState(firstSheet);
   const [transactions, setTransactions] = useState(initialTransactions);
   const [viewMode, setViewMode] = useState<'list' | 'stats' | 'settings'>('list');
   const [loading, setLoading] = useState(false);
@@ -53,10 +60,17 @@ export function Dashboard({
   const [mounted, setMounted] = useState(false);
   const [editingTab, setEditingTab] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [goals, setGoals] = useState<Record<string, number>>({});
+  // Initialize goals with server-provided data
+  const [goals, setGoals] = useState<Record<string, number>>({ [firstSheet]: initialGoal });
   const [goalsLoading, setGoalsLoading] = useState<Record<string, boolean>>({});
-  const [unitGoals, setUnitGoals] = useState<Record<string, UnitGoalSettings>>({});
+  const [unitGoals, setUnitGoals] = useState<Record<string, UnitGoalSettings>>({ [firstSheet]: initialUnitGoal });
   const longPressTimer = useRef<NodeJS.Timeout>(null);
+
+  // Debounce timers for settings inputs
+  const goalDebounce = useRef<NodeJS.Timeout>(null);
+  const unitTargetDebounce = useRef<NodeJS.Timeout>(null);
+  const unitNameDebounce = useRef<NodeJS.Timeout>(null);
+  const unitPriceDebounce = useRef<NodeJS.Timeout>(null);
 
   const handleRenameTab = async () => {
     if (!editingTab || !renameValue.trim() || renameValue === editingTab) {
@@ -87,36 +101,44 @@ export function Dashboard({
   };
 
   // Set mounted state for hydration stability
+  const isInitialMount = useRef(true);
   useEffect(() => {
     setMounted(true);
   }, []);
 
   // Client-side Cache
   const [cachedData, setCachedData] = useState<Record<string, any[]>>({
-    [initialSheets[0] || "Donation"]: initialTransactions
+    [firstSheet]: initialTransactions
   });
 
-  // Refresh data when currentSheet changes
-  const [username, setUsername] = useState("جاري التحميل...");
-  useEffect(() => {
-    getUserProfile().then(p => {
-      setUsername(p?.displayName || p?.username || "Unknown");
-    });
-  }, []);
+  // Username is pre-fetched from server
+  const [username] = useState(initialUsername);
 
   const router = useRouter();
-  const handleLogout = async () => {
-    setLoading(true);
-    await logoutUser();
+  const handleLogout = () => {
+    // Fire-and-forget: redirect immediately, server cleans up in background
     router.push("/login");
+    logoutUser(); // No await - runs in background
+  };
+
+  const handleGoHome = () => {
+    router.push("/");
   };
 
   useEffect(() => {
+    // Use cached data immediately if available
     if (cachedData[currentSheet]) {
       setTransactions(cachedData[currentSheet]);
     }
 
     const fetchTransactions = async () => {
+      // Skip refetch on initial mount if we already have data from SSR
+      if (isInitialMount.current && cachedData[currentSheet]) {
+        isInitialMount.current = false;
+        return;
+      }
+      isInitialMount.current = false;
+
       if (!cachedData[currentSheet]) setLoading(true);
 
       try {
@@ -182,29 +204,31 @@ export function Dashboard({
     };
   }, [currentSheet]);
 
-  const handleCreateTab = async () => {
+  const handleCreateTab = () => {
     if (!newTabName.trim()) return;
-    setIsCreatingTab(true);
 
     const prevSheets = [...allSheets];
     const name = newTabName.trim();
+    
+    // Optimistic UI: update immediately
     setAllSheets([...allSheets, name]);
     setCurrentSheet(name);
+    setCachedData(prev => ({ ...prev, [name]: [] })); // Initialize empty cache for new tab
     setNewTabName("");
     setShowAddTabModal(false);
 
-    try {
-      const res = await createSheet(name);
+    // Save in background (no waiting)
+    createSheet(name).then(res => {
       if (!res.success) {
+        // Rollback on error
         setAllSheets(prevSheets);
         setCurrentSheet(prevSheets[0]);
+        toast.error("فشل في إنشاء التصنيف");
       }
-    } catch (error) {
+    }).catch(() => {
       setAllSheets(prevSheets);
       setCurrentSheet(prevSheets[0]);
-    } finally {
-      setIsCreatingTab(false);
-    }
+    });
   };
 
   const handleDeleteTab = async (sheetName: string) => {
@@ -359,6 +383,15 @@ export function Dashboard({
                  <Settings className="w-4 h-4" />
                </button>
 
+              {/* Apps / Home button */}
+              <button
+                onClick={handleGoHome}
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+                title="التطبيقات"
+              >
+                <Grid3X3 className="w-4 h-4" />
+              </button>
+
           </div>
 
           {viewMode === 'stats' ? (
@@ -412,9 +445,13 @@ export function Dashboard({
                           if (/^\d*$/.test(raw)) {
                             const newGoal = parseFloat(raw) || 0;
                             setGoals(prev => ({ ...prev, [currentSheet]: newGoal }));
-                            import("@/app/actions").then(({ updateCategoryGoal }) => {
-                              updateCategoryGoal(currentSheet, newGoal);
-                            });
+                            // Debounced server call
+                            if (goalDebounce.current) clearTimeout(goalDebounce.current);
+                            goalDebounce.current = setTimeout(() => {
+                              import("@/app/actions").then(({ updateCategoryGoal }) => {
+                                updateCategoryGoal(currentSheet, newGoal);
+                              });
+                            }, 1000);
                           }
                         }}
                         placeholder="90,000"
@@ -445,9 +482,13 @@ export function Dashboard({
                             const isEnabled = newVal > 0 || current.unitName.trim() !== '' || current.unitPrice > 0;
                             const updated = { ...current, unitTarget: newVal, enabled: isEnabled };
                             setUnitGoals(prev => ({ ...prev, [currentSheet]: updated }));
-                            import("@/app/actions").then(({ updateUnitGoal }) => {
-                              updateUnitGoal(currentSheet, updated);
-                            });
+                            // Debounced server call
+                            if (unitTargetDebounce.current) clearTimeout(unitTargetDebounce.current);
+                            unitTargetDebounce.current = setTimeout(() => {
+                              import("@/app/actions").then(({ updateUnitGoal }) => {
+                                updateUnitGoal(currentSheet, updated);
+                              });
+                            }, 1000);
                           }
                         }}
                         placeholder="50"
@@ -475,9 +516,13 @@ export function Dashboard({
                           const isEnabled = newVal.trim() !== '' || current.unitPrice > 0 || current.unitTarget > 0;
                           const updated = { ...current, unitName: newVal, enabled: isEnabled };
                           setUnitGoals(prev => ({ ...prev, [currentSheet]: updated }));
-                          import("@/app/actions").then(({ updateUnitGoal }) => {
-                            updateUnitGoal(currentSheet, updated);
-                          });
+                          // Debounced server call
+                          if (unitNameDebounce.current) clearTimeout(unitNameDebounce.current);
+                          unitNameDebounce.current = setTimeout(() => {
+                            import("@/app/actions").then(({ updateUnitGoal }) => {
+                              updateUnitGoal(currentSheet, updated);
+                            });
+                          }, 1000);
                         }}
                         placeholder="شنطة"
                         className="w-full bg-gray-50 border border-gray-200 rounded-xl pr-10 pl-4 py-3 font-bold text-sm text-gray-800 placeholder:text-gray-300 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 transition-all text-right"
@@ -507,9 +552,13 @@ export function Dashboard({
                             const isEnabled = newVal > 0 || current.unitName.trim() !== '' || current.unitTarget > 0;
                             const updated = { ...current, unitPrice: newVal, enabled: isEnabled };
                             setUnitGoals(prev => ({ ...prev, [currentSheet]: updated }));
-                            import("@/app/actions").then(({ updateUnitGoal }) => {
-                              updateUnitGoal(currentSheet, updated);
-                            });
+                            // Debounced server call
+                            if (unitPriceDebounce.current) clearTimeout(unitPriceDebounce.current);
+                            unitPriceDebounce.current = setTimeout(() => {
+                              import("@/app/actions").then(({ updateUnitGoal }) => {
+                                updateUnitGoal(currentSheet, updated);
+                              });
+                            }, 1000);
                           }
                         }}
                         placeholder="250"
@@ -627,14 +676,21 @@ export function Dashboard({
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter className="flex-row-reverse gap-2">
-                        <AlertDialogAction className="bg-red-600 hover:bg-red-700 rounded-xl font-bold" onClick={async () => {
+                        <AlertDialogAction className="bg-red-600 hover:bg-red-700 rounded-xl font-bold" onClick={() => {
                           const prevTransactions = [...transactions];
+                          // Optimistic: clear immediately
                           setTransactions([]);
                           setCachedData(prev => ({ ...prev, [currentSheet]: [] }));
-                          try {
-                            const res = await clearAllTransactions(currentSheet);
-                            if (!res?.success) setTransactions(prevTransactions);
-                          } catch (e) { setTransactions(prevTransactions); }
+                          // Fire-and-forget: server clears in background
+                          clearAllTransactions(currentSheet).then(res => {
+                            if (!res?.success) {
+                              setTransactions(prevTransactions);
+                              setCachedData(prev => ({ ...prev, [currentSheet]: prevTransactions }));
+                            }
+                          }).catch(() => {
+                            setTransactions(prevTransactions);
+                            setCachedData(prev => ({ ...prev, [currentSheet]: prevTransactions }));
+                          });
                         }}>نعم، امسح الكل</AlertDialogAction>
                         <AlertDialogCancel className="rounded-xl font-bold">إلغاء</AlertDialogCancel>
                       </AlertDialogFooter>
