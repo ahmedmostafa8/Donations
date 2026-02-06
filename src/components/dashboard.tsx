@@ -204,11 +204,8 @@ export function Dashboard({
 
   // Client-side Cache
   const [cachedData, setCachedData] = useState<Record<string, any[]>>({
-    [firstSheet]: initialTransactions
+    [initialSheets[0] || "Donation"]: initialTransactions
   });
-
-  // Username is pre-fetched from server
-  const [username] = useState(initialUsername);
 
   const router = useRouter();
   const handleLogout = () => {

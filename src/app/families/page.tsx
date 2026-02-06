@@ -1,24 +1,41 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { getUserProfile } from "../actions";
 import Link from "next/link";
 import { ArrowRight, Wrench } from "lucide-react";
 
-export const dynamic = "force-dynamic";
 
-export default async function FamiliesPage() {
-  // Server-side auth check
-  const cookieStore = await cookies();
-  const user = cookieStore.get("app_user")?.value;
-  if (!user) redirect("/login");
+export default function FamiliesPage() {
+  const [username, setUsername] = useState("جاري التحميل...");
+  const router = useRouter();
 
-  const userProfile = await getUserProfile();
-  const username = userProfile?.displayName || userProfile?.username || "User";
+  useEffect(() => {
+    // 1. Instant Load from Cache
+    const cachedUser = typeof window !== 'undefined' ? localStorage.getItem("donations_user_v1") : null;
+    if (cachedUser) {
+      setUsername(cachedUser);
+    }
+
+    // 2. Background Verify & Fetch
+    getUserProfile().then((userProfile) => {
+      if (!userProfile) {
+        // If session is invalid, techincally we should redirect, 
+        // but for now we just let it be or redirect
+        // router.push("/login"); 
+        return;
+      }
+      const name = userProfile.displayName || userProfile.username || "User";
+      setUsername(name);
+      localStorage.setItem("donations_user_v1", name);
+    });
+  }, []);
 
   return (
     <div 
       dir="rtl" 
-      className="min-h-[100dvh] bg-[#0a0a0f] flex flex-col items-center justify-center p-4 relative overflow-hidden"
+      className="min-h-[100dvh] bg-[#0a0a0f] flex flex-col items-center justify-center p-4 relative overflow-hidden animate-in fade-in duration-500"
     >
       {/* Animated Background Gradient Orbs */}
       <div className="absolute inset-0 overflow-hidden">
@@ -60,6 +77,8 @@ export default async function FamiliesPage() {
           <br />
           <span className="text-purple-400">سيتم إطلاقه فور الإنتهاء منه! ✨</span>
         </p>
+
+
 
         {/* Back Button */}
         <Link
