@@ -291,7 +291,7 @@ export function StatisticsView({
                 {/* Remaining Card - Red */}
                 <div className="bg-red-50 border border-red-100 rounded-lg p-2 flex flex-col items-center justify-center text-center">
                   <div className="text-red-700 font-bold text-xs">
-                    فاضل {remaining}
+                    متبقي {remaining}
                   </div>
                 </div>
               </div>
