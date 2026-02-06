@@ -11,24 +11,8 @@ export default async function DonationsPage() {
   const user = cookieStore.get("app_user")?.value;
   if (!user) redirect("/login");
 
-  const sheets = await getSheets();
-  const firstSheet = sheets[0] || "Donation";
+  // We now let the Client Component (Dashboard) handle data fetching
+  // This allows for "Instant Load" from cache and background syncing.
   
-  // Parallel fetch all initial data
-  const [initialTransactions, initialGoal, initialUnitGoal, userProfile] = await Promise.all([
-    getTransactions(firstSheet),
-    getCategoryGoal(firstSheet),
-    getUnitGoal(firstSheet),
-    getUserProfile()
-  ]);
-
-  return (
-    <Dashboard
-      initialSheets={sheets}
-      initialTransactions={initialTransactions}
-      initialGoal={initialGoal}
-      initialUnitGoal={initialUnitGoal}
-      initialUsername={userProfile?.displayName || userProfile?.username || "Unknown"}
-    />
-  );
+  return <Dashboard />;
 }

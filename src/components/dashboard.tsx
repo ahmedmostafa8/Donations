@@ -37,42 +37,136 @@ import { toast } from "sonner";
 
 
 export function Dashboard({
-  initialSheets,
-  initialTransactions,
-  initialGoal,
-  initialUnitGoal,
-  initialUsername
+  initialSheets = [],
+  initialTransactions = [],
+  initialGoal = 0,
+  initialUnitGoal = null,
+  initialUsername = "جاري التحميل..."
 }: {
-  initialSheets: string[],
-  initialTransactions: any[],
-  initialGoal: number,
-  initialUnitGoal: any,
-  initialUsername: string
+  initialSheets?: string[],
+  initialTransactions?: any[],
+  initialGoal?: number,
+  initialUnitGoal?: any,
+  initialUsername?: string
 }) {
-  const firstSheet = initialSheets[0] || "Donation";
-  const [currentSheet, setCurrentSheet] = useState(firstSheet);
-  const [transactions, setTransactions] = useState(initialTransactions);
+  // --- Cache Keys ---
+  const STORAGE_KEY_DATA = "donations_data_v2";
+  const STORAGE_KEY_USER = "donations_user_v1";
+
+  // --- State Initialization ---
+  // We initialize with props if available which avoids hydration mismatch. 
+  // Cache loading happens in useEffect for client-side speed.
+  const [currentSheet, setCurrentSheet] = useState(initialSheets[0] || "Donation");
+  const [allSheets, setAllSheets] = useState<string[]>(initialSheets.length > 0 ? initialSheets : ["Donation"]);
+  const [transactions, setTransactions] = useState<any[]>(initialTransactions);
+  
+  // Goals State
+  const [goals, setGoals] = useState<Record<string, number>>({ [initialSheets[0] || "Donation"]: initialGoal });
+  const [unitGoals, setUnitGoals] = useState<Record<string, UnitGoalSettings>>({ [initialSheets[0] || "Donation"]: initialUnitGoal });
+  
+  const [username, setUsername] = useState(initialUsername !== "Unknown" ? initialUsername : "جاري التحميل...");
+
+  // ... (Other UI states like edit mode, modal visibility, etc. kept as is) ...
   const [viewMode, setViewMode] = useState<'list' | 'stats' | 'settings'>('list');
-  const [isNavOpen, setIsNavOpen] = useState(false); // Navigation State
+  const [isNavOpen, setIsNavOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [newTabName, setNewTabName] = useState("");
   const [isCreatingTab, setIsCreatingTab] = useState(false);
   const [showAddTabModal, setShowAddTabModal] = useState(false);
-  const [allSheets, setAllSheets] = useState(initialSheets);
   const [mounted, setMounted] = useState(false);
   const [editingTab, setEditingTab] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  // Initialize goals with server-provided data
-  const [goals, setGoals] = useState<Record<string, number>>({ [firstSheet]: initialGoal });
   const [goalsLoading, setGoalsLoading] = useState<Record<string, boolean>>({});
-  const [unitGoals, setUnitGoals] = useState<Record<string, UnitGoalSettings>>({ [firstSheet]: initialUnitGoal });
+  
   const longPressTimer = useRef<NodeJS.Timeout>(null);
-
-  // Debounce timers for settings inputs
   const goalDebounce = useRef<NodeJS.Timeout>(null);
   const unitTargetDebounce = useRef<NodeJS.Timeout>(null);
   const unitNameDebounce = useRef<NodeJS.Timeout>(null);
   const unitPriceDebounce = useRef<NodeJS.Timeout>(null);
+
+  // --- 1. Load from Cache & Fetch Fresh Data (Instant Load Logic) ---
+  useEffect(() => {
+    setMounted(true);
+    
+    const loadData = async () => {
+      // A. Try loading from LocalStorage first (Instant)
+      try {
+        const cachedData = localStorage.getItem(STORAGE_KEY_DATA);
+        const cachedUser = localStorage.getItem(STORAGE_KEY_USER);
+
+        if (cachedData) {
+          const parsed = JSON.parse(cachedData);
+          // Apply cache if props were empty (CSR mode) or to ensure latest client state
+          if (initialSheets.length === 0) {
+            if (parsed.sheets?.length) {
+                setAllSheets(parsed.sheets);
+                setCurrentSheet(parsed.sheets[0]);
+            }
+            if (parsed.transactions) setTransactions(parsed.transactions);
+            if (parsed.goals) setGoals(parsed.goals);
+            if (parsed.unitGoals) setUnitGoals(parsed.unitGoals);
+          }
+        }
+        
+        if (cachedUser && initialUsername === "جاري التحميل...") {
+             setUsername(cachedUser);
+        }
+      } catch (e) {
+        console.error("Cache load error", e);
+      }
+
+      // B. Fetch Fresh Data (Background)
+      try {
+        // 1. Fetch User
+        import("@/app/actions").then(async ({ getUserProfile, getSheets, getTransactions, getCategoryGoal, getUnitGoal }) => {
+            if (initialUsername === "جاري التحميل..." || initialUsername === "Unknown") {
+                getUserProfile().then(p => {
+                    const name = p?.displayName || p?.username || "User";
+                    setUsername(name);
+                    localStorage.setItem(STORAGE_KEY_USER, name);
+                });
+            }
+
+            // 2. Fetch Sheets
+            const sheets = await getSheets();
+            if (sheets.length > 0) {
+                setAllSheets(sheets);
+                if (!sheets.includes(currentSheet)) setCurrentSheet(sheets[0]);
+                
+                // 3. Fetch Data for Current Sheet (Optimized)
+                // We fetch specific data for the *active* sheet first
+                const targetSheet = sheets.includes(currentSheet) ? currentSheet : sheets[0];
+                
+                const [txs, g, ug] = await Promise.all([
+                    getTransactions(targetSheet),
+                    getCategoryGoal(targetSheet),
+                    getUnitGoal(targetSheet)
+                ]);
+
+                setTransactions(txs);
+                setGoals(prev => ({ ...prev, [targetSheet]: g }));
+                setUnitGoals(prev => ({ ...prev, [targetSheet]: ug || { enabled: false, unitName: "", unitPrice: 0, unitTarget: 0 } }));
+
+                // Update Cache
+                const cachePayload = {
+                    sheets,
+                    transactions: txs, // Note: This only caches current sheet txs, simpler for now
+                    goals: { ...goals, [targetSheet]: g },
+                    unitGoals: { ...unitGoals, [targetSheet]: ug }
+                };
+                localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(cachePayload));
+            }
+        });
+
+      } catch (err) {
+        console.error("Background fetch error", err);
+      }
+    };
+
+    loadData();
+  }, []); // Run once on mount
+
+  // ... (Rest of component logic remains similar) ...
 
   const handleRenameTab = async () => {
     if (!editingTab || !renameValue.trim() || renameValue === editingTab) {
