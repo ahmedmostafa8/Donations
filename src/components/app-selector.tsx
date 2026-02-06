@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Coins, Users, LogOut, Sparkles, ChevronLeft } from "lucide-react";
 
 interface AppSelectorProps {
@@ -12,12 +12,24 @@ export function AppSelector({ username }: AppSelectorProps) {
   const router = useRouter();
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [shouldAnimate, setShouldAnimate] = useState(false);
+
+  useEffect(() => {
+    // Check if we've already shown the animation in this session
+    const hasShownAnimation = sessionStorage.getItem("app_selector_shown");
+    
+    if (!hasShownAnimation) {
+      setShouldAnimate(true);
+      sessionStorage.setItem("app_selector_shown", "true");
+    }
+  }, []);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
     const { logoutUser } = await import("@/app/actions");
     await logoutUser();
-    router.push("/login");
+    // Force hard reload to clear all client-side cache
+    window.location.href = "/login";
   };
 
   const apps = [
@@ -54,8 +66,11 @@ export function AppSelector({ username }: AppSelectorProps) {
     >
       {/* Animated Background Gradient Orbs */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-[-20%] right-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br from-amber-500/30 via-orange-500/20 to-transparent rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br from-violet-500/30 via-purple-500/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
+        <div className={`absolute top-[-20%] right-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br from-amber-500/30 via-orange-500/20 to-transparent rounded-full blur-3xl ${shouldAnimate ? 'animate-pulse' : ''}`} />
+        <div 
+          className={`absolute bottom-[-20%] left-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br from-violet-500/30 via-purple-500/20 to-transparent rounded-full blur-3xl ${shouldAnimate ? 'animate-pulse' : ''}`} 
+          style={shouldAnimate ? { animationDelay: "1s" } : {}} 
+        />
       </div>
 
       {/* Dot Pattern Overlay */}
@@ -71,7 +86,7 @@ export function AppSelector({ username }: AppSelectorProps) {
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-4 sm:py-12">
         
         {/* Welcome Section - Compact on mobile */}
-        <div className="text-center mb-4 sm:mb-14 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className={`text-center mb-4 sm:mb-14 ${shouldAnimate ? 'animate-in fade-in slide-in-from-bottom-4 duration-700' : ''}`}>
           <div className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm mb-6">
             <Sparkles className="w-4 h-4 text-amber-400" />
             <span className="text-sm text-gray-400">مرحباً بك</span>
@@ -84,7 +99,10 @@ export function AppSelector({ username }: AppSelectorProps) {
         </div>
 
         {/* App Cards Grid - Compact on mobile */}
-        <div className="w-full max-w-sm sm:max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 px-2 animate-in fade-in slide-in-from-bottom-6 duration-700" style={{ animationDelay: "200ms" }}>
+        <div 
+          className={`w-full max-w-sm sm:max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 px-2 ${shouldAnimate ? 'animate-in fade-in slide-in-from-bottom-6 duration-700' : ''}`} 
+          style={shouldAnimate ? { animationDelay: "200ms" } : {}}
+        >
           {apps.map((app, index) => (
             <button
               key={app.id}
@@ -98,7 +116,7 @@ export function AppSelector({ username }: AppSelectorProps) {
                 ${app.ready ? "cursor-pointer active:scale-[0.98]" : "cursor-not-allowed"}
                 ${hoveredApp === app.id ? "scale-[1.02] sm:scale-105" : "scale-100"}
               `}
-              style={{ animationDelay: `${index * 100}ms` }}
+              style={shouldAnimate ? { animationDelay: `${index * 100}ms` } : {}}
             >
               {/* Card Background with Gradient Border */}
               <div className="absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-white/10 to-white/5 p-[1px]">
@@ -116,7 +134,7 @@ export function AppSelector({ username }: AppSelectorProps) {
               </div>
 
               {/* Card Content - Horizontal on mobile */}
-              <div className="relative p-4 sm:p-8 flex flex-row sm:flex-col items-center sm:items-start gap-3 sm:gap-0">
+              <div className="relative p-4 sm:p-8 flex flex-row sm:flex-col items-center sm:items-center gap-3 sm:gap-0">
                 {/* Icon Container */}
                 <div className="shrink-0 sm:mb-5">
                   <div 
@@ -197,12 +215,12 @@ export function AppSelector({ username }: AppSelectorProps) {
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
-          className="mt-4 sm:mt-14 flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl
+          className={`mt-4 sm:mt-14 flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl
             bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30
             text-gray-500 hover:text-red-400 transition-all duration-300 cursor-pointer
             disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base
-            animate-in fade-in slide-in-from-bottom-8 duration-700"
-          style={{ animationDelay: "400ms" }}
+            ${shouldAnimate ? 'animate-in fade-in slide-in-from-bottom-8 duration-700' : ''}`}
+          style={shouldAnimate ? { animationDelay: "400ms" } : {}}
         >
           <LogOut className={`w-4 h-4 sm:w-5 sm:h-5 ${isLoggingOut ? "animate-spin" : ""}`} />
           <span className="font-medium">{isLoggingOut ? "جاري الخروج..." : "تسجيل الخروج"}</span>
@@ -210,7 +228,7 @@ export function AppSelector({ username }: AppSelectorProps) {
       </div>
 
       {/* Footer - Hidden on very small screens */}
-      <div className="relative z-10 pb-3 sm:pb-6 text-center animate-in fade-in duration-1000" style={{ animationDelay: "600ms" }}>
+      <div className={`relative z-10 pb-3 sm:pb-6 text-center ${shouldAnimate ? 'animate-in fade-in duration-1000' : ''}`} style={shouldAnimate ? { animationDelay: "600ms" } : {}}>
         <p className="text-gray-700 text-[10px] sm:text-xs">
           صُنع بكل حب بواسطة <span className="text-gray-500">أحمد مصطفى ❤️</span>
         </p>

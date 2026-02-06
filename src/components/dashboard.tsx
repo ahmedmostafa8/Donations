@@ -6,6 +6,7 @@ import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Penc
 import { cn } from "@/lib/utils";
 import { StatisticsView } from "./statistics-view";
 import { TransactionList } from "./transaction-list";
+import { NavigationHub } from "./navigation-hub"; // Import Hub
 import { supabase } from "@/lib/supabase";
 import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, renameSheet, type UnitGoalSettings } from "@/app/actions";
 import {
@@ -52,6 +53,7 @@ export function Dashboard({
   const [currentSheet, setCurrentSheet] = useState(firstSheet);
   const [transactions, setTransactions] = useState(initialTransactions);
   const [viewMode, setViewMode] = useState<'list' | 'stats' | 'settings'>('list');
+  const [isNavOpen, setIsNavOpen] = useState(false); // Navigation State
   const [loading, setLoading] = useState(false);
   const [newTabName, setNewTabName] = useState("");
   const [isCreatingTab, setIsCreatingTab] = useState(false);
@@ -117,12 +119,12 @@ export function Dashboard({
   const router = useRouter();
   const handleLogout = () => {
     // Fire-and-forget: redirect immediately, server cleans up in background
-    router.push("/login");
+    window.location.href = "/login"; // Force hard reload to clear cache
     logoutUser(); // No await - runs in background
   };
 
   const handleGoHome = () => {
-    router.push("/");
+    window.location.href = "/"; // Force reload to ensure App Selector loads fresh
   };
 
   useEffect(() => {
@@ -278,54 +280,65 @@ export function Dashboard({
     <div className="min-h-screen bg-gray-50 pb-20" suppressHydrationWarning>
 
       {/* ================= HEADER ================= */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-5 sticky top-0 z-40">
+      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-5 sticky top-0 z-40 transition-all duration-300">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             
-            {/* Avatar */}
-            {(() => {
-              if (username === "جاري التحميل...") {
-                return <div className="w-12 h-12 rounded-full bg-gray-200 animate-pulse shrink-0" />;
-              }
+            {/* Avatar - Clickable for Navigation */}
+            <button 
+              onClick={() => setIsNavOpen(true)}
+              className="relative group transition-transform active:scale-95 outline-none"
+            >
+              {(() => {
+                if (username === "جاري التحميل...") {
+                  return <div className="w-12 h-12 rounded-full bg-gray-200 animate-pulse shrink-0" />;
+                }
 
-              if (username.includes("ادم")) {
-                 return (
-                   <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
-                      <img src="/adam.jpg" alt="Avatar" className="w-full h-full object-cover" />
-                   </div>
-                 );
-              }
+                if (username.includes("ادم")) {
+                   return (
+                     <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
+                        <img src="/adam.jpg" alt="Avatar" className="w-full h-full object-cover" />
+                     </div>
+                   );
+                }
 
-              if (username.includes("نسرين")) {
-                 return (
-                   <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
-                      <img src="/nesreen.jpg" alt="Avatar" className="w-full h-full object-cover" />
-                   </div>
-                 );
-              }
+                if (username.includes("نسرين")) {
+                   return (
+                     <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
+                        <img src="/nesreen.jpg" alt="Avatar" className="w-full h-full object-cover" />
+                     </div>
+                   );
+                }
 
-              if (username.includes("نور")) {
-                 return (
-                   <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
-                      <img src="/noor.webp" alt="Avatar" className="w-full h-full object-cover" />
-                   </div>
-                 );
-              }
+                if (username.includes("نور")) {
+                   return (
+                     <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
+                        <img src="/noor.webp" alt="Avatar" className="w-full h-full object-cover" />
+                     </div>
+                   );
+                }
+                
+                // Fallback to Gradient Letter for others (until photos are added)
+                return (
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-gray-200 shrink-0">
+                    {username.slice(0, 1)}
+                  </div>
+                );
+              })()}
               
-              // Fallback to Gradient Letter for others (until photos are added)
-              return (
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-gray-200 shrink-0 transform hover:scale-105 transition-transform duration-300">
-                  {username.slice(0, 1)}
-                </div>
-              );
-            })()}
+              {/* Menu Indicator Badge */}
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
+                <div className="w-1 h-1 bg-gray-400 rounded-full box-content border-[1.5px] border-white" />
+                <div className="w-1 h-1 bg-gray-400 rounded-full box-content border-[1.5px] border-white ml-[1px]" />
+              </div>
+            </button>
 
             <div className="space-y-0.5">
               <h1 className="text-xl font-black text-gray-900 tracking-tight leading-none">
-                مرحباً، {username !== "جاري التحميل..." ? username.split(" ")[0] : "..."} 👋
+                {username !== "جاري التحميل..." ? username.split(" ")[0] : "..."} 👋
               </h1>
               <div className="flex items-center gap-2">
-                <p className="text-[12px] font-bold text-gray-400">إدارة التبرعـات</p>
+                <p className="text-[12px] font-bold text-gray-400">{currentSheet}</p>
                 <div className="w-1 h-1 rounded-full bg-emerald-400 mr-[-5px] animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
               </div>
             </div>
@@ -335,7 +348,6 @@ export function Dashboard({
             <div className="text-[10px] text-emerald-600 font-black mb-0.5 uppercase tracking-wider opacity-80">إجمالي المبلغ</div>
             <div className="text-xl font-black text-emerald-600 leading-none tracking-tight">
               {total.toLocaleString()}
-              <span className="text-[10px] mr-1 opacity-70">ج.م</span>
             </div>
           </div>
         </div>
@@ -383,14 +395,7 @@ export function Dashboard({
                  <Settings className="w-4 h-4" />
                </button>
 
-              {/* Apps / Home button */}
-              <button
-                onClick={handleGoHome}
-                className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
-                title="التطبيقات"
-              >
-                <Grid3X3 className="w-4 h-4" />
-              </button>
+
 
           </div>
 
@@ -725,175 +730,66 @@ export function Dashboard({
             </div>
           )}
           
-          {/* Logout Button at Bottom */}
-          <div className="pt-8 pb-4">
-            <button
-              onClick={handleLogout}
-              className="w-full bg-red-50 text-red-500 py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-red-100 active:scale-95 transition-all"
-            >
-              <LogOut className="w-5 h-5 stroke-[2.5px]" />
-              تسجيل الخروج
-            </button>
-          </div>
+          {/* Logout Button Removed - Moved to NavigationHub */}
+
         </section>
       </main>
 
-      {/* ================= BOTTOM NAVIGATION ================= */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
-        <div className="max-w-xl mx-auto px-4 py-2 flex items-center gap-2.5 min-h-[56px]">
-          {/* Add Tab Button */}
-          <div className="shrink-0">
-            <Dialog open={showAddTabModal} onOpenChange={setShowAddTabModal}>
-              <DialogTrigger asChild>
-                <button
-                  className="w-9 h-9 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-all active:scale-90 border border-gray-100"
-                  title="إضافة تصنيف"
-                >
-                  <Plus className="w-5 h-5 stroke-[2.5px]" />
-                </button>
-              </DialogTrigger>
-              <DialogContent className="text-right sm:max-w-[425px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden" showCloseButton={false}>
-                <div className="absolute top-4 left-4 z-50">
-                  <DialogClose className="w-8 h-8 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-full flex items-center justify-center transition-all">
-                    <X className="w-4 h-4" />
-                  </DialogClose>
-                </div>
+      <NavigationHub
+        isOpen={isNavOpen}
+        onClose={() => setIsNavOpen(false)}
+        currentView={viewMode}
+        onViewChange={setViewMode}
+        username={username}
+        onLogout={handleLogout}
+        onGoHome={handleGoHome}
+        sheets={allSheets}
+        currentSheet={currentSheet}
+        onSheetChange={setCurrentSheet}
+        onRename={async (oldName, newName) => {
+             // Wrapper to handle rename from Hub
+             if (!newName.trim() || newName === oldName) return;
+             
+             const prevSheets = [...allSheets];
+             const newSheets = allSheets.map(s => s === oldName ? newName : s);
+             setAllSheets(newSheets);
+             if (currentSheet === oldName) setCurrentSheet(newName);
 
-                <div className="p-6 pt-10 space-y-6">
-                  <DialogHeader className="text-right pr-2 border-r-4 border-primary">
-                    <DialogTitle className="text-xl font-black text-gray-900">تصنيف جديد</DialogTitle>
-                    <p className="text-xs text-gray-400 font-bold">أضف اسماً للمجلد الجديد لتنظيم عملياتك</p>
-                  </DialogHeader>
+             try {
+               const res = await renameSheet(oldName, newName);
+               if (!res.success) {
+                  toast.error("فشل في تغيير الاسم");
+                  setAllSheets(prevSheets);
+                  if (currentSheet === newName) setCurrentSheet(oldName);
+               }
+             } catch (e) {
+                setAllSheets(prevSheets);
+                if (currentSheet === newName) setCurrentSheet(oldName);
+             }
+        }}
+        onDelete={handleDeleteTab}
+        onAdd={(name) => {
+           if (!name.trim()) return;
+           const newName = name.trim();
+           
+           // Optimistic UI
+           const prevSheets = [...allSheets];
+           setAllSheets([...allSheets, newName]);
+           setCurrentSheet(newName);
+           setCachedData(prev => ({ ...prev, [newName]: [] }));
 
-                  <div className="space-y-4">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="مثلاً: صدقة جارية، زكاة..."
-                        autoFocus
-                        value={newTabName}
-                        onChange={(e) => setNewTabName(e.target.value)}
-                        className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 py-4 text-right font-black text-gray-700 placeholder:text-gray-300 focus:border-primary/30 focus:bg-white outline-none transition-all"
-                        onKeyDown={(e) => e.key === 'Enter' && handleCreateTab()}
-                      />
-                    </div>
-                  </div>
-
-                  <DialogFooter className="flex-row-reverse gap-3 pt-2">
-                    <button
-                      onClick={handleCreateTab}
-                      disabled={isCreatingTab || !newTabName.trim()}
-                      className="flex-1 py-4 bg-primary text-white rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl shadow-primary/20 disabled:opacity-50 disabled:grayscale"
-                    >
-                      {isCreatingTab ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5 stroke-[3px]" />}
-                      تأكيد الإنشاء
-                    </button>
-                  </DialogFooter>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          <div className="h-5 w-[1px] bg-gray-200 shrink-0 mx-0.5" />
-
-          {/* Tabs List */}
-          <div className="flex-1 flex gap-3 overflow-x-auto no-scrollbar py-3 px-1">
-            {allSheets.map((sheet) => (
-              <div key={sheet} className="relative shrink-0 flex items-center group">
-                {editingTab === sheet ? (
-                  <div className="relative">
-                    <input
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={handleRenameTab}
-                      onKeyDown={(e) => e.key === 'Enter' && handleRenameTab()}
-                      style={{ width: `${Math.max(renameValue.length, 6) + 4}ch` }}
-                      className="h-9 px-3 rounded-xl font-bold text-[13px] text-center border-2 border-primary outline-none min-w-[100px]"
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => setCurrentSheet(sheet)}
-                      onDoubleClick={() => {
-                        setEditingTab(sheet);
-                        setRenameValue(sheet);
-                      }}
-                      // Long Press for Mobile
-                      onTouchStart={(e) => {
-                        longPressTimer.current = setTimeout(() => {
-                          setEditingTab(sheet);
-                          setRenameValue(sheet);
-                          try {
-                            if (navigator.vibrate) navigator.vibrate(50);
-                          } catch (e) { /* ignore */ }
-                        }, 600);
-                      }}
-                      onTouchEnd={() => {
-                        if (longPressTimer.current) clearTimeout(longPressTimer.current);
-                      }}
-                      onTouchMove={() => {
-                        if (longPressTimer.current) clearTimeout(longPressTimer.current);
-                      }}
-                      className={cn(
-                        "h-9 px-5 rounded-xl font-black text-[13px] transition-all whitespace-nowrap flex items-center justify-center relative select-none",
-                        currentSheet === sheet
-                          ? "bg-primary text-white -translate-y-[1px]"
-                          : "bg-white text-gray-400 border border-gray-200 hover:border-gray-300"
-                      )}
-                    >
-                      {sheet}
-                    </button>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingTab(sheet);
-                        setRenameValue(sheet);
-                      }}
-                      className={cn(
-                        "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-md transition-all z-10",
-                        "opacity-0 group-hover:opacity-100 scale-90 hover:scale-110 bg-blue-500 text-white"
-                      )}
-                      title="تعديل الاسم"
-                    >
-                      <Pencil className="w-2.5 h-2.5" />
-                    </button>
-                  </>
-                )}
-
-                {allSheets.length > 1 && !editingTab && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <button className={cn(
-                        "absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-md transition-all z-10",
-                        "opacity-100 sm:opacity-0 group-hover:opacity-100 scale-100 active:scale-90",
-                        currentSheet === sheet ? "bg-red-500 text-white" : "bg-gray-400 text-white"
-                      )}>
-                        <X className="w-2.5 h-2.5 stroke-[4px]" />
-                      </button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="text-right rounded-2xl">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="text-right">حذف التصنيف؟</AlertDialogTitle>
-                        <AlertDialogDescription className="text-right">
-                          سيتم حذف "{sheet}" بالكامل مع جميع بياناته.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter className="flex-row-reverse gap-2">
-                        <AlertDialogAction onClick={() => handleDeleteTab(sheet)} className="bg-red-600 rounded-xl font-bold">نعم، احذف</AlertDialogAction>
-                        <AlertDialogCancel className="rounded-xl font-bold">إلغاء</AlertDialogCancel>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
-            ))}
-            <div className="w-4 shrink-0" />
-          </div>
-        </div>
-      </nav>
+           createSheet(newName).then(res => {
+             if (!res.success) {
+               setAllSheets(prevSheets);
+               setCurrentSheet(prevSheets[0]);
+               toast.error("فشل في إنشاء التصنيف");
+             }
+           }).catch(() => {
+             setAllSheets(prevSheets);
+             setCurrentSheet(prevSheets[0]);
+           });
+        }}
+      />
     </div>
   );
 }

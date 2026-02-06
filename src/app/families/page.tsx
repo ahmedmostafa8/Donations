@@ -58,7 +58,7 @@ export default async function FamiliesPage() {
         <p className="text-gray-500 text-sm sm:text-base max-w-xs mx-auto mb-8">
           نعمل على تطوير تطبيق إدارة العائلات
           <br />
-          <span className="text-purple-400">سيتم إطلاقه قريباً! ✨</span>
+          <span className="text-purple-400">سيتم إطلاقه فور الإنتهاء منه! ✨</span>
         </p>
 
         {/* Back Button */}
