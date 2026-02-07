@@ -152,15 +152,16 @@ export function AppSelector({ username }: AppSelectorProps) {
                 </div>
 
                 {/* Text Content */}
-                <div className="flex-1 text-right min-w-0">
+                <div className="flex-1 w-full min-w-0 text-right sm:text-center">
                   <h2 className={`
                     text-lg sm:text-3xl font-bold mb-0.5 sm:mb-2
                     bg-gradient-to-l ${app.gradient} bg-clip-text
                     ${app.ready ? "text-transparent" : "text-gray-500"}
+                    sm:text-center
                   `}>
                     {app.name}
                   </h2>
-                  <p className="text-gray-500 text-xs sm:text-base truncate">
+                  <p className="text-gray-500 text-xs sm:text-base truncate sm:text-center">
                     {app.subtitle}
                   </p>
                 </div>

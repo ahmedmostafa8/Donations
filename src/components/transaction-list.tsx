@@ -330,17 +330,36 @@ export function TransactionList({
                                                 {deletingId === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                                             </button>
                                         </AlertDialogTrigger>
-                                        <AlertDialogContent className="text-right">
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>حذف العملية؟</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    هل أنت متأكد من حذف هذه العملية؟ لا يمكن التراجع.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter className="flex-row-reverse gap-2">
-                                                <AlertDialogAction onClick={() => handleInternalDelete(t.id)} className="bg-red-600 hover:bg-red-700">نعم، احذف</AlertDialogAction>
-                                                <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                                            </AlertDialogFooter>
+                                        <AlertDialogContent className="max-w-md w-full rounded-[2rem] p-0 overflow-hidden border-0 shadow-2xl focus:outline-none">
+                                            <div className="p-8 flex flex-col items-center text-center gap-4 bg-white">
+                                                <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-2 animate-in zoom-in-50 duration-300">
+                                                    <Trash2 className="w-8 h-8 text-red-500 stroke-[1.5]" />
+                                                </div>
+                                                
+                                                <div className="space-y-2">
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle className="text-xl font-black text-gray-900 text-center">
+                                                            حذف العملية؟
+                                                        </AlertDialogTitle>
+                                                        <AlertDialogDescription className="text-center text-gray-500 font-medium px-4">
+                                                            هل أنت متأكد من حذف هذه العملية؟ <br/>
+                                                            <span className="text-red-500 font-bold block mt-1">لا يمكن التراجع عن هذا الإجراء.</span>
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                </div>
+
+                                                <AlertDialogFooter className="flex-col-reverse sm:flex-row-reverse sm:space-x-2 w-full gap-2 mt-4">
+                                                    <AlertDialogAction 
+                                                        onClick={() => handleInternalDelete(t.id)} 
+                                                        className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl h-12 font-bold shadow-lg shadow-red-200 focus:outline-none focus:ring-0 transition-all"
+                                                    >
+                                                        نعم، احذف
+                                                    </AlertDialogAction>
+                                                    <AlertDialogCancel className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border-0 rounded-xl h-12 font-bold focus:outline-none focus:ring-0 transition-all">
+                                                        تراجع
+                                                    </AlertDialogCancel>
+                                                </AlertDialogFooter>
+                                            </div>
                                         </AlertDialogContent>
                                     </AlertDialog>
                                 </div>

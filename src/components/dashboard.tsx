@@ -2,9 +2,16 @@
 import { useRouter } from "next/navigation";
 
 import { useState, useEffect, useRef } from "react";
-import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut, PieChart as PieChartIcon, Settings, Wallet, Target, Package, DollarSign, Database, Grid3X3 } from "lucide-react";
+import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut, PieChart as PieChartIcon, Settings, Wallet, Target, Package, DollarSign, Database, Grid3X3, FolderOpen, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatisticsView } from "./statistics-view";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 import { TransactionList } from "./transaction-list";
 import { NavigationHub } from "./navigation-hub"; // Import Hub
 import { supabase } from "@/lib/supabase";
@@ -23,6 +30,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -77,6 +85,14 @@ export function Dashboard({
   const [editingTab, setEditingTab] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [goalsLoading, setGoalsLoading] = useState<Record<string, boolean>>({});
+
+  // Sidebar Inline State
+  const [isSidebarCreating, setIsSidebarCreating] = useState(false);
+  const [newSidebarTabName, setNewSidebarTabName] = useState("");
+
+  const [editingSidebarSheet, setEditingSidebarSheet] = useState<string | null>(null);
+  const [renameSidebarValue, setRenameSidebarValue] = useState("");
+  const [sheetToDelete, setSheetToDelete] = useState<string | null>(null);
   
   const longPressTimer = useRef<NodeJS.Timeout>(null);
   const goalDebounce = useRef<NodeJS.Timeout>(null);
@@ -117,42 +133,33 @@ export function Dashboard({
 
       // B. Fetch Fresh Data (Background)
       try {
-        // 1. Fetch User
-        import("@/app/actions").then(async ({ getUserProfile, getSheets, getTransactions, getCategoryGoal, getUnitGoal }) => {
-            if (initialUsername === "جاري التحميل..." || initialUsername === "Unknown") {
-                getUserProfile().then(p => {
-                    const name = p?.displayName || p?.username || "User";
-                    setUsername(name);
-                    localStorage.setItem(STORAGE_KEY_USER, name);
-                });
-            }
+        import("@/app/actions").then(async ({ getDashboardData }) => {
+            const data = await getDashboardData(currentSheet);
 
-            // 2. Fetch Sheets
-            const sheets = await getSheets();
+            const { profile, sheets, activeSheet, transactions: txs, goal: g, unitGoal: ug } = data;
+
+            // 1. Update Profile
+            const name = profile?.displayName || profile?.username || "User";
+            setUsername(name);
+            localStorage.setItem(STORAGE_KEY_USER, name);
+
+            // 2. Update Sheets & Data
             if (sheets.length > 0) {
                 setAllSheets(sheets);
-                if (!sheets.includes(currentSheet)) setCurrentSheet(sheets[0]);
+                if (activeSheet !== currentSheet && !sheets.includes(currentSheet)) {
+                   setCurrentSheet(activeSheet);
+                }
                 
-                // 3. Fetch Data for Current Sheet (Optimized)
-                // We fetch specific data for the *active* sheet first
-                const targetSheet = sheets.includes(currentSheet) ? currentSheet : sheets[0];
-                
-                const [txs, g, ug] = await Promise.all([
-                    getTransactions(targetSheet),
-                    getCategoryGoal(targetSheet),
-                    getUnitGoal(targetSheet)
-                ]);
-
                 setTransactions(txs);
-                setGoals(prev => ({ ...prev, [targetSheet]: g }));
-                setUnitGoals(prev => ({ ...prev, [targetSheet]: ug || { enabled: false, unitName: "", unitPrice: 0, unitTarget: 0 } }));
+                setGoals(prev => ({ ...prev, [activeSheet]: g }));
+                setUnitGoals(prev => ({ ...prev, [activeSheet]: ug }));
 
                 // Update Cache
                 const cachePayload = {
                     sheets,
-                    transactions: txs, // Note: This only caches current sheet txs, simpler for now
-                    goals: { ...goals, [targetSheet]: g },
-                    unitGoals: { ...unitGoals, [targetSheet]: ug }
+                    transactions: txs,
+                    goals: { ...goals, [activeSheet]: g },
+                    unitGoals: { ...unitGoals, [activeSheet]: ug}
                 };
                 localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(cachePayload));
             }
@@ -165,6 +172,52 @@ export function Dashboard({
 
     loadData();
   }, []); // Run once on mount
+
+  // --- Keyboard Shortcuts ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+
+      switch (e.key) {
+        case 'ArrowRight':
+          // RTL: Right Arrow -> Next Tab (Visually Left? No, usually Right arrow means go right)
+          // In RTL list: [3] [2] [1]
+          // If at [1], Right Arrow should probably go to [2] (Index + 1)?
+          // Or does it follow visual direction?
+          // Let's try: Right -> Index - 1 (Visually Right in RTL), Left -> Index + 1 (Visually Left in RTL)
+          e.preventDefault();
+          setAllSheets(sheets => {
+            const idx = sheets.indexOf(currentSheet);
+            const nextIdx = idx > 0 ? idx - 1 : sheets.length - 1; // Cycle
+            setCurrentSheet(sheets[nextIdx]);
+            return sheets; // No state change for sheets, just return
+          });
+          break;
+        case 'ArrowLeft':
+           e.preventDefault();
+           setAllSheets(sheets => {
+            const idx = sheets.indexOf(currentSheet);
+            const nextIdx = idx < sheets.length - 1 ? idx + 1 : 0; // Cycle
+            setCurrentSheet(sheets[nextIdx]);
+            return sheets; 
+          });
+          break;
+        case 'Escape':
+          setIsNavOpen(false);
+          setEditingTab(null);
+          setShowAddTabModal(false);
+          // If we lift state for "Add Transaction", we could close it here too
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentSheet]); // Re-bind when currentSheet changes to get fresh state? 
+  // Actually setAllSheets updater gives fresh sheets, but we need currentSheet. 
+  // Better use functional update or dependency.
+
 
   // ... (Rest of component logic remains similar) ...
 
@@ -363,6 +416,60 @@ export function Dashboard({
     }
   }
 
+  // Sidebar Handlers
+  const handleSidebarCreate = () => {
+    if (!newSidebarTabName.trim()) {
+        setIsSidebarCreating(false);
+        return;
+    }
+    const name = newSidebarTabName.trim();
+    // Reusing existing logic but for specific state
+    const prevSheets = [...allSheets];
+    setAllSheets([...allSheets, name]);
+    setCurrentSheet(name);
+    setCachedData(prev => ({ ...prev, [name]: [] }));
+    setIsSidebarCreating(false);
+    setNewSidebarTabName("");
+
+    createSheet(name).then(res => {
+      if (!res.success) {
+        setAllSheets(prevSheets);
+        setCurrentSheet(prevSheets[0]);
+        toast.error("فشل في إنشاء التصنيف");
+      }
+    }).catch(() => {
+        setAllSheets(prevSheets);
+        setCurrentSheet(prevSheets[0]);
+    });
+  };
+
+  const handleSidebarRenameSave = async () => {
+      if (!editingSidebarSheet || !renameSidebarValue.trim() || renameSidebarValue === editingSidebarSheet) {
+          setEditingSidebarSheet(null);
+          return;
+      }
+      const oldName = editingSidebarSheet;
+      const newName = renameSidebarValue.trim();
+      
+      const prevSheets = [...allSheets];
+      const newSheets = allSheets.map(s => s === oldName ? newName : s);
+      setAllSheets(newSheets);
+      if (currentSheet === oldName) setCurrentSheet(newName);
+      setEditingSidebarSheet(null);
+
+      try {
+        const res = await renameSheet(oldName, newName);
+        if (!res.success) {
+            toast.error("فشل في تغيير الاسم");
+            setAllSheets(prevSheets);
+            if (currentSheet === newName) setCurrentSheet(oldName);
+        }
+      } catch (e) {
+          setAllSheets(prevSheets);
+          if (currentSheet === newName) setCurrentSheet(oldName);
+      }
+  };
+
   const total = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
 
   if (!mounted) return null;
@@ -372,7 +479,7 @@ export function Dashboard({
 
       {/* ================= HEADER ================= */}
       <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-5 sticky top-0 z-40 transition-all duration-300">
-        <div className="max-w-xl mx-auto flex items-center justify-between">
+        <div className="max-w-xl md:max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             
             {/* Avatar - Clickable for Navigation */}
@@ -441,17 +548,209 @@ export function Dashboard({
               {total.toLocaleString()}
             </div>
           </div>
+
+          {/* DESKTOP HEADER NAVIGATION */}
+          <nav className="hidden md:flex items-center gap-2 absolute left-1/2 -translate-x-1/2 bg-gray-50/50 p-1.5 rounded-xl border border-gray-200/50 backdrop-blur-sm">
+             <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                "h-9 px-4 rounded-lg flex items-center gap-2 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer",
+                viewMode === 'list'
+                  ? "bg-white text-emerald-600 shadow-sm border border-emerald-100 font-bold"
+                  : "text-gray-500 hover:bg-gray-100 font-medium hover:text-gray-700"
+              )}
+            >
+              <Home className="w-4 h-4" />
+              <span className="text-xs">الرئيسية</span>
+            </button>
+             <button
+              onClick={() => setViewMode(prev => prev === 'stats' ? 'list' : 'stats')}
+              className={cn(
+                "h-9 px-4 rounded-lg flex items-center gap-2 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer",
+                viewMode === 'stats'
+                  ? "bg-white text-emerald-600 shadow-sm border border-emerald-100 font-bold"
+                  : "text-gray-500 hover:bg-gray-100 font-medium hover:text-gray-700"
+              )}
+            >
+              <PieChartIcon className="w-4 h-4" />
+              <span className="text-xs">الإحصائيات</span>
+            </button>
+             <button
+              onClick={() => setViewMode(prev => prev === 'settings' ? 'list' : 'settings')}
+              className={cn(
+                "h-9 px-4 rounded-lg flex items-center gap-2 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer",
+                viewMode === 'settings'
+                  ? "bg-white text-emerald-600 shadow-sm border border-emerald-100 font-bold"
+                  : "text-gray-500 hover:bg-gray-100 font-medium hover:text-gray-700"
+              )}
+            >
+              <Settings className="w-4 h-4" />
+              <span className="text-xs">الإعدادات</span>
+            </button>
+          </nav>
         </div>
       </header>
 
-      <main className="max-w-xl mx-auto px-6 py-4 pb-24 space-y-6 text-right">
+      <div className="md:max-w-5xl md:mx-auto md:flex md:gap-8 md:items-start md:mt-8 md:px-6"> 
+        {/* ================= DESKTOP SIDEBAR (SHEETS) ================= */}
+        <aside className="hidden md:flex flex-col gap-4 w-64 sticky top-28 shrink-0 h-[calc(100vh-8rem)] overflow-y-auto no-scrollbar pl-2 pb-6">
+            
+            <div className="flex items-center justify-between px-2">
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider">الدفاتر</h3>
+                <button 
+                  onClick={() => setIsSidebarCreating(true)}
+                  className="w-6 h-6 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-600 flex items-center justify-center transition-colors cursor-pointer"
+                >
+                    <Plus className="w-3.5 h-3.5" />
+                </button>
+            </div>
+
+            <div className="flex flex-col gap-1.5 min-h-[50px]">
+                {allSheets.map(sheet => {
+                    if (editingSidebarSheet === sheet) {
+                        return (
+                            <div key={sheet} className="w-full p-1 bg-white border-2 border-emerald-500 rounded-xl flex items-center gap-2 shadow-sm">
+                                <button onClick={handleSidebarRenameSave} className="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-200 transition-colors cursor-pointer">
+                                    <Check className="w-4 h-4" />
+                                </button>
+                                <input 
+                                    autoFocus
+                                    className="flex-1 bg-transparent border-none outline-none font-bold text-sm text-gray-800 text-right min-w-0"
+                                    value={renameSidebarValue}
+                                    onChange={(e) => setRenameSidebarValue(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if(e.key === 'Enter') handleSidebarRenameSave();
+                                        if(e.key === 'Escape') setEditingSidebarSheet(null);
+                                    }}
+                                />
+                                <button onClick={() => setEditingSidebarSheet(null)} className="w-8 h-8 text-gray-400 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )
+                    }
+
+                    return (
+                        <ContextMenu key={sheet}>
+                            <ContextMenuTrigger>
+                                <div className="group relative">
+                                    <button
+                                        onClick={() => {
+                                            setCurrentSheet(sheet);
+                                            setViewMode('list'); 
+                                        }}
+                                        className={cn(
+                                            "w-full h-11 rounded-xl flex items-center justify-between px-3 transition-all outline-none focus:outline-none focus:ring-0 relative cursor-pointer select-none",
+                                            currentSheet === sheet
+                                                ? "bg-emerald-50 border-2 border-emerald-500 text-emerald-800 shadow-sm z-10"
+                                                : "bg-white border border-transparent hover:border-emerald-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <FolderOpen className={cn("w-4 h-4 shrink-0", currentSheet === sheet ? "fill-emerald-200 text-emerald-600" : "text-gray-400")} />
+                                            <span className={cn("font-bold text-sm truncate", currentSheet === sheet ? "text-emerald-900" : "group-hover:text-gray-900")}>
+                                                {sheet}
+                                            </span>
+                                        </div>
+                                        {currentSheet === sheet && <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm" />}
+                                    </button>
+                                </div>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent className="w-48">
+                                <ContextMenuItem 
+                                    className="flex items-center gap-2 cursor-pointer"
+                                    onClick={() => { setEditingSidebarSheet(sheet); setRenameSidebarValue(sheet); }}
+                                >
+                                    <Pencil className="w-4 h-4" />
+                                    <span>تعديل الاسم</span>
+                                </ContextMenuItem>
+                                <ContextMenuSeparator />
+                                <ContextMenuItem 
+                                    className="flex items-center gap-2 text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
+                                    onClick={() => setSheetToDelete(sheet)}
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    <span>حذف الدفتر</span>
+                                </ContextMenuItem>
+                            </ContextMenuContent>
+                        </ContextMenu>
+                    );
+                })}
+
+                {/* Inline Creation */}
+                {isSidebarCreating ? (
+                    <div className="w-full p-1.5 bg-white border-2 border-emerald-500 rounded-xl flex items-center gap-2 shadow-md mt-2 animate-in fade-in slide-in-from-top-2">
+                        <button onClick={handleSidebarCreate} className="w-8 h-8 bg-emerald-500 text-white rounded-lg flex items-center justify-center hover:bg-emerald-600 transition-colors cursor-pointer shadow-sm">
+                            <Check className="w-4 h-4 stroke-[3px]" />
+                        </button>
+                        <input 
+                            autoFocus
+                            className="flex-1 bg-transparent border-none outline-none font-bold text-sm text-gray-800 text-right min-w-0 placeholder:text-gray-300"
+                            placeholder="اسم الدفتر..."
+                            value={newSidebarTabName}
+                            onChange={(e) => setNewSidebarTabName(e.target.value)}
+                            onKeyDown={(e) => {
+                                if(e.key === 'Enter') handleSidebarCreate();
+                                if(e.key === 'Escape') setIsSidebarCreating(false);
+                            }}
+                        />
+                        <button onClick={() => setIsSidebarCreating(false)} className="w-8 h-8 text-gray-400 rounded-lg flex items-center justify-center hover:bg-gray-100 hover:text-red-500 transition-colors cursor-pointer">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => { setIsSidebarCreating(true); setNewSidebarTabName(""); }}
+                        className="w-full py-3.5 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 font-bold text-xs flex items-center justify-center gap-2 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all mt-3 cursor-pointer group"
+                    >
+                        <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
+                            <Plus className="w-3.5 h-3.5" />
+                        </div>
+                        <span>إنشاء دفتر جديد</span>
+                    </button>
+                )}
+            </div>
+
+            {/* Sidebar Footer */}
+            {/* Sidebar Footer */}
+            {/* Sidebar Footer */}
+             <div className="mt-auto pt-6 border-t border-gray-100 flex flex-col gap-2.5">
+                <a 
+                   href="/families" 
+                   className="w-full h-11 px-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-indigo-100 hover:shadow-lg hover:shadow-indigo-200 flex items-center justify-between group cursor-pointer transition-all duration-300 relative overflow-hidden"
+                >
+                    <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="flex items-center gap-3 relative z-10 w-full">
+                        <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                            <Grid3X3 className="w-4 h-4 text-white" />
+                        </div>
+                        <span className="font-bold text-sm tracking-wide flex-1 text-right truncate">تطبيق العائلات</span>
+                    </div>
+                    <ChevronLeft className="w-4 h-4 relative z-10 opacity-70 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all shrink-0" />
+                </a>
+                
+                <button 
+                  onClick={handleLogout}
+                  className="w-full h-11 px-3 rounded-xl bg-white border border-red-100 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 hover:shadow-md hover:shadow-red-50 flex items-center justify-between transition-all duration-300 group cursor-pointer"
+                >
+                    <div className="flex items-center gap-3 w-full">
+                        <div className="w-7 h-7 rounded-lg bg-red-50 group-hover:bg-white flex items-center justify-center transition-colors shrink-0">
+                             <LogOut className="w-4 h-4 text-red-400 group-hover:text-red-600 group-hover:rotate-12 transition-all" />
+                        </div>
+                        <span className="font-bold text-sm flex-1 text-right truncate">تسجيل الخروج</span>
+                    </div>
+                </button>
+            </div>
+        </aside>
+
+      <main className="flex-1 w-full max-w-xl mx-auto px-6 py-4 pb-24 space-y-6 text-right md:px-0 md:py-0 md:max-w-none">
         {/* ================= ACTIONS & DATA SECTION ================= */}
         <section className="space-y-6">
-          <div className="flex items-center justify-center gap-2 px-1">
+          <div className="flex items-center justify-center gap-2 px-1 md:hidden">
             <button
               onClick={() => setViewMode('list')}
               className={cn(
-                "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm",
+                "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm outline-none focus:outline-none focus:ring-0",
                 viewMode === 'list'
                   ? "bg-primary text-white shadow-primary/30"
                   : "bg-gray-50 text-gray-400 hover:bg-gray-100"
@@ -463,7 +762,7 @@ export function Dashboard({
               <button
                  onClick={() => setViewMode(prev => prev === 'stats' ? 'list' : 'stats')}
                  className={cn(
-                   "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm",
+                   "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm outline-none focus:outline-none focus:ring-0",
                    viewMode === 'stats' 
                      ? "bg-emerald-500 text-white shadow-emerald-200" 
                      : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
@@ -476,7 +775,7 @@ export function Dashboard({
               <button
                  onClick={() => setViewMode(prev => prev === 'settings' ? 'list' : 'settings')}
                  className={cn(
-                   "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm",
+                   "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm outline-none focus:outline-none focus:ring-0",
                    viewMode === 'settings' 
                      ? "bg-amber-500 text-white shadow-amber-200" 
                      : "bg-amber-50 text-amber-600 hover:bg-amber-100"
@@ -678,7 +977,7 @@ export function Dashboard({
                   {/* Export Button */}
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <button className="w-full bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 p-4 rounded-xl flex items-center justify-between group transition-all">
+                      <button className="w-full bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 p-4 rounded-xl flex items-center justify-between group transition-all focus:outline-none focus:ring-0">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
                             <Download className="w-5 h-5" />
@@ -690,62 +989,80 @@ export function Dashboard({
                         </div>
                       </button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent className="text-right rounded-2xl">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="text-right">تصدير البيانات؟</AlertDialogTitle>
-                        <AlertDialogDescription className="text-right">
-                          هل تريد تحميل كافة العمليات في ملف CSV؟
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter className="flex-row-reverse gap-2">
-                        <AlertDialogAction onClick={() => {
-                          try {
-                            // Calculate Summaries
-                            const totalIn = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
-                            const totalOut = transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
-                            const netTotal = totalIn - totalOut;
+                    <AlertDialogContent className="max-w-md w-full rounded-[2rem] p-0 overflow-hidden border-0 shadow-2xl focus:outline-none">
+                      <div className="p-8 flex flex-col items-center text-center gap-4 bg-white">
+                        <div className="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center mb-2 animate-in zoom-in-50 duration-300">
+                           <Download className="w-8 h-8 text-indigo-500 stroke-[1.5]" />
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="text-xl font-black text-gray-900 text-center">
+                                    تصدير البيانات؟
+                                </AlertDialogTitle>
+                                <AlertDialogDescription className="text-center text-gray-500 font-medium">
+                                    سيتم تجهيز ملف بصيغة CSV يحتوي على كافة العمليات <br/> المسجلة في دفتر <b>"{currentSheet}"</b>.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                        </div>
 
-                            let csvContent = "\uFEFF";
-                            
-                            // Section 1: Meta Info
-                            csvContent += `Transactions Report\n`;
-                            csvContent += `Sheet Name,${currentSheet}\n`;
-                            csvContent += `User Name,${username !== "جاري التحميل..." ? username : ""}\n`;
-                            csvContent += `Export Date,${new Date().toLocaleDateString('en-US')}\n`;
-                            csvContent += `\n`; // Spacer
+                        <AlertDialogFooter className="flex-col-reverse sm:flex-row-reverse sm:space-x-2 w-full gap-2 mt-4">
+                             <AlertDialogAction 
+                                onClick={() => {
+                                  try {
+                                    // Calculate Summaries
+                                    const totalIn = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+                                    const totalOut = transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+                                    const netTotal = totalIn - totalOut;
 
-                            // Section 2: Dashboard Summary
-                            csvContent += `Dashboard Summary\n`;
-                            csvContent += `Total In,${totalIn}\n`;
-                            csvContent += `Total Out,${totalOut}\n`;
-                            csvContent += `Net Total,${netTotal}\n`;
-                            csvContent += `\n`; // Spacer
+                                    let csvContent = "\uFEFF";
+                                    
+                                    // Section 1: Meta Info
+                                    csvContent += `Transactions Report\n`;
+                                    csvContent += `Sheet Name,${currentSheet}\n`;
+                                    csvContent += `User Name,${username !== "جاري التحميل..." ? username : ""}\n`;
+                                    csvContent += `Export Date,${new Date().toLocaleDateString('en-US')}\n`;
+                                    csvContent += `\n`; // Spacer
 
-                            // Section 3: Details
-                            csvContent += `Transaction Details\n`;
-                            csvContent += `Date,Name,Type,Amount,Note\n`;
+                                    // Section 2: Dashboard Summary
+                                    csvContent += `Dashboard Summary\n`;
+                                    csvContent += `Total In,${totalIn}\n`;
+                                    csvContent += `Total Out,${totalOut}\n`;
+                                    csvContent += `Net Total,${netTotal}\n`;
+                                    csvContent += `\n`; // Spacer
 
-                            transactions.forEach(row => {
-                              const type = row.amount >= 0 ? "Income" : "Expense";
-                              const absAmount = Math.abs(row.amount);
-                              // Escape quotes in note
-                              const safeNote = (row.note || "").replace(/"/g, '""');
-                              
-                              csvContent += `${row.date},${row.name},${type},${absAmount},"${safeNote}"\n`;
-                            });
+                                    // Section 3: Details
+                                    csvContent += `Transaction Details\n`;
+                                    csvContent += `Date,Name,Type,Amount,Note\n`;
 
-                            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                            const link = document.createElement("a");
-                            link.href = URL.createObjectURL(blob);
-                            link.download = `Report_${currentSheet}_${new Date().toISOString().split('T')[0]}.csv`;
-                            link.click();
-                          } catch (e) {
-                            console.error(e);
-                            toast.error("Export Failed");
-                          }
-                        }} className="bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold">تصدير الآن</AlertDialogAction>
-                        <AlertDialogCancel className="rounded-xl font-bold">إلغاء</AlertDialogCancel>
-                      </AlertDialogFooter>
+                                    transactions.forEach(row => {
+                                      const type = row.amount >= 0 ? "Income" : "Expense";
+                                      const absAmount = Math.abs(row.amount);
+                                      // Escape quotes in note
+                                      const safeNote = (row.note || "").replace(/"/g, '""');
+                                      
+                                      csvContent += `${row.date},${row.name},${type},${absAmount},"${safeNote}"\n`;
+                                    });
+
+                                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                    const link = document.createElement("a");
+                                    link.href = URL.createObjectURL(blob);
+                                    link.download = `Report_${currentSheet}_${new Date().toISOString().split('T')[0]}.csv`;
+                                    link.click();
+                                  } catch (e) {
+                                    console.error(e);
+                                    toast.error("Export Failed");
+                                  }
+                                }} 
+                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-12 font-bold shadow-lg shadow-indigo-200 focus:outline-none focus:ring-0 transition-all"
+                            >
+                                تصدير الآن
+                            </AlertDialogAction>
+                            <AlertDialogCancel className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border-0 rounded-xl h-12 font-bold focus:outline-none focus:ring-0 transition-all">
+                                إلغاء
+                            </AlertDialogCancel>
+                        </AlertDialogFooter>
+                      </div>
                     </AlertDialogContent>
                   </AlertDialog>
 
@@ -764,32 +1081,49 @@ export function Dashboard({
                         </div>
                       </button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent className="text-right rounded-2xl">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="text-right">تأكيد الحذف</AlertDialogTitle>
-                        <AlertDialogDescription className="text-right">
-                          سيتم حذف كافة العمليات في "{currentSheet}". لا يمكن التراجع.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter className="flex-row-reverse gap-2">
-                        <AlertDialogAction className="bg-red-600 hover:bg-red-700 rounded-xl font-bold" onClick={() => {
-                          const prevTransactions = [...transactions];
-                          // Optimistic: clear immediately
-                          setTransactions([]);
-                          setCachedData(prev => ({ ...prev, [currentSheet]: [] }));
-                          // Fire-and-forget: server clears in background
-                          clearAllTransactions(currentSheet).then(res => {
-                            if (!res?.success) {
-                              setTransactions(prevTransactions);
-                              setCachedData(prev => ({ ...prev, [currentSheet]: prevTransactions }));
-                            }
-                          }).catch(() => {
-                            setTransactions(prevTransactions);
-                            setCachedData(prev => ({ ...prev, [currentSheet]: prevTransactions }));
-                          });
-                        }}>نعم، امسح الكل</AlertDialogAction>
-                        <AlertDialogCancel className="rounded-xl font-bold">إلغاء</AlertDialogCancel>
-                      </AlertDialogFooter>
+                    <AlertDialogContent className="max-w-md w-full rounded-[2rem] p-0 overflow-hidden border-0 shadow-2xl focus:outline-none">
+                      <div className="p-8 flex flex-col items-center text-center gap-4 bg-white">
+                        <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-2 animate-in zoom-in-50 duration-300">
+                           <Trash2 className="w-8 h-8 text-red-500 stroke-[1.5]" />
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="text-xl font-black text-gray-900 text-center">
+                                    مسح الدفتر؟
+                                </AlertDialogTitle>
+                                <AlertDialogDescription className="text-center text-gray-500 font-medium">
+                                    هل أنت متأكد من مسح جميع العمليات في <b>"{currentSheet}"</b>؟ <br/>
+                                    <span className="text-red-500 font-bold block mt-1">لا يمكن التراجع عن هذا الإجراء وسيتم تصفير الدفتر.</span>
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                        </div>
+
+                        <AlertDialogFooter className="flex-col-reverse sm:flex-row-reverse sm:space-x-2 w-full gap-2 mt-4">
+                             <AlertDialogAction 
+                                onClick={() => {
+                                  const prevTransactions = [...transactions];
+                                  setTransactions([]);
+                                  setCachedData(prev => ({ ...prev, [currentSheet]: [] }));
+                                  clearAllTransactions(currentSheet).then(res => {
+                                    if (!res?.success) {
+                                      setTransactions(prevTransactions);
+                                      setCachedData(prev => ({ ...prev, [currentSheet]: prevTransactions }));
+                                    }
+                                  }).catch(() => {
+                                    setTransactions(prevTransactions);
+                                    setCachedData(prev => ({ ...prev, [currentSheet]: prevTransactions }));
+                                  });
+                                }} 
+                                className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl h-12 font-bold shadow-lg shadow-red-200 focus:outline-none focus:ring-0 transition-all"
+                            >
+                                نعم، امسح الكل
+                            </AlertDialogAction>
+                            <AlertDialogCancel className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border-0 rounded-xl h-12 font-bold focus:outline-none focus:ring-0 transition-all">
+                                إلغاء
+                            </AlertDialogCancel>
+                        </AlertDialogFooter>
+                      </div>
                     </AlertDialogContent>
                   </AlertDialog>
                 </div>
@@ -825,6 +1159,95 @@ export function Dashboard({
 
         </section>
       </main>
+      </div>
+
+      <Dialog open={showAddTabModal} onOpenChange={setShowAddTabModal}>
+        <DialogContent className="max-w-md w-full rounded-[2rem] p-0 overflow-hidden border-0 shadow-2xl focus:outline-none">
+          <div className="p-8 flex flex-col items-center text-center gap-4 bg-white">
+            <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-2 animate-in zoom-in-50 duration-300">
+               <FolderOpen className="w-8 h-8 text-emerald-500 stroke-[1.5]" />
+            </div>
+            
+            <div className="space-y-2 w-full">
+                <DialogHeader>
+                    <DialogTitle className="text-xl font-black text-gray-900 text-center">
+                        إضافة دفتر جديد
+                    </DialogTitle>
+                    <DialogDescription className="text-center text-gray-500 font-medium">
+                        قم بتسمية الدفتر الجديد لتنظيم عملياتك المالية بشكل أفضل.
+                    </DialogDescription>
+                </DialogHeader>
+            </div>
+
+            <div className="w-full mt-2">
+               <input
+                value={newTabName}
+                onChange={(e) => setNewTabName(e.target.value)}
+                placeholder="اسم الدفتر (مثال: صدقة، زكاة)"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 font-bold text-base text-gray-800 focus:outline-none focus:ring-0 focus:border-emerald-500 transition-all text-right placeholder:text-gray-300"
+                autoFocus
+                onKeyDown={(e) => {
+                    if(e.key === 'Enter') handleCreateTab();
+                }}
+              />
+            </div>
+
+            <DialogFooter className="flex-col-reverse sm:flex-row-reverse sm:space-x-2 w-full gap-2 mt-4">
+                 <button 
+                   onClick={handleCreateTab}
+                   className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-14 font-black shadow-lg shadow-emerald-100 focus:outline-none focus:ring-0 transition-all flex items-center justify-center gap-2"
+                 >
+                    <Plus className="w-5 h-5 stroke-[3px]" />
+                    إضافة الدفتر
+                </button>
+                <button 
+                  onClick={() => setShowAddTabModal(false)}
+                  className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-500 border-0 rounded-xl h-14 font-bold focus:outline-none focus:ring-0 transition-all"
+                >
+                    تراجع
+                </button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Global Delete Confirmation */}
+      <AlertDialog open={!!sheetToDelete} onOpenChange={(open) => !open && setSheetToDelete(null)}>
+        <AlertDialogContent className="max-w-md w-full rounded-[2rem] p-0 overflow-hidden border-0 shadow-2xl focus:outline-none">
+          <div className="p-8 flex flex-col items-center text-center gap-4 bg-white">
+            <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-2 animate-in zoom-in-50 duration-300">
+               <Trash2 className="w-8 h-8 text-red-500 stroke-[1.5]" />
+            </div>
+            
+            <div className="space-y-2">
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="text-xl font-black text-gray-900 text-center">
+                        حذف "{sheetToDelete}"؟
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-center text-gray-500 font-medium">
+                        هل أنت متأكد من رغبتك في حذف هذا الدفتر؟ <br/>
+                        <span className="text-red-500 font-bold block mt-1">لا يمكن التراجع عن هذا الإجراء وسيتم حذف جميع البيانات.</span>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+            </div>
+
+            <AlertDialogFooter className="flex-col-reverse sm:flex-row-reverse sm:space-x-2 w-full gap-2 mt-4">
+                 <AlertDialogAction 
+                    onClick={() => {
+                        if (sheetToDelete) handleDeleteTab(sheetToDelete);
+                        setSheetToDelete(null);
+                    }} 
+                    className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl h-12 font-bold shadow-lg shadow-red-200 hover:shadow-red-300 transition-all"
+                >
+                    نعم، حذف نهائي
+                </AlertDialogAction>
+                <AlertDialogCancel className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border-0 rounded-xl h-12 font-bold transition-all">
+                    تراجع
+                </AlertDialogCancel>
+            </AlertDialogFooter>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <NavigationHub
         isOpen={isNavOpen}

@@ -177,7 +177,7 @@ export async function updateUnitGoal(sheetName: string, settings: UnitGoalSettin
         unit_enabled: settings.enabled,
         unit_name: settings.unitName,
         unit_price: settings.unitPrice,
-        unit_target: settings.unitTarget,
+        unit_target: settings.unitTarget
       })
       .eq('name', sheetName)
       .eq('owner_name', user);
@@ -390,4 +390,29 @@ export async function updateTransaction(sheetName: string, id: number, data: { n
     console.error("Error updating transaction:", error);
     return { success: false };
   }
+}
+
+// Unified Loader
+export async function getDashboardData(sheetName: string = "Donation") {
+  const [profile, sheets] = await Promise.all([
+     getUserProfile(),
+     getSheets(),
+  ]);
+
+  const targetSheet = sheets.includes(sheetName) ? sheetName : (sheets[0] || "Donation");
+
+  const [transactions, goal, unitGoal] = await Promise.all([
+     getTransactions(targetSheet),
+     getCategoryGoal(targetSheet),
+     getUnitGoal(targetSheet),
+  ]);
+
+  return {
+    profile,
+    sheets,
+    activeSheet: targetSheet,
+    transactions,
+    goal,
+    unitGoal
+  };
 }
