@@ -15,6 +15,7 @@ import {
 import { TransactionList } from "./transaction-list";
 import { NavigationHub } from "./navigation-hub"; // Import Hub
 import { supabase } from "@/lib/supabase";
+import { useSwipeTabs } from "@/hooks/use-swipe-tabs";
 import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, renameSheet, type UnitGoalSettings } from "@/app/actions";
 import {
   AlertDialog,
@@ -78,6 +79,24 @@ export function Dashboard({
   const [viewMode, setViewMode] = useState<'list' | 'stats' | 'settings'>('list');
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Swipe Navigation for Tabs
+  const goToNextTab = () => {
+    const idx = allSheets.indexOf(currentSheet);
+    const nextIdx = idx < allSheets.length - 1 ? idx + 1 : 0;
+    setCurrentSheet(allSheets[nextIdx]);
+  };
+  const goToPrevTab = () => {
+    const idx = allSheets.indexOf(currentSheet);
+    const prevIdx = idx > 0 ? idx - 1 : allSheets.length - 1;
+    setCurrentSheet(allSheets[prevIdx]);
+  };
+  const swipeHandlers = useSwipeTabs({
+    onSwipeLeft: goToNextTab,
+    onSwipeRight: goToPrevTab,
+    enabled: viewMode === 'list',
+    threshold: 60,
+  });
   const [newTabName, setNewTabName] = useState("");
   const [isCreatingTab, setIsCreatingTab] = useState(false);
   const [showAddTabModal, setShowAddTabModal] = useState(false);
@@ -743,7 +762,7 @@ export function Dashboard({
             </div>
         </aside>
 
-      <main className="flex-1 w-full max-w-xl mx-auto px-6 py-4 pb-24 space-y-6 text-right md:px-0 md:py-0 md:max-w-none">
+      <main {...swipeHandlers} className="flex-1 w-full max-w-xl mx-auto px-6 py-4 pb-24 space-y-6 text-right md:px-0 md:py-0 md:max-w-none">
         {/* ================= ACTIONS & DATA SECTION ================= */}
         <section className="space-y-6">
           <div className="flex items-center justify-center gap-2 px-1 md:hidden">
