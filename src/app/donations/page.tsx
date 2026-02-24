@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getTransactions, getSheets, getCategoryGoal, getUnitGoal, getUserProfile } from "../actions";
+import { getDashboardData } from "../actions";
 import { Dashboard } from "@/components/dashboard";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +11,16 @@ export default async function DonationsPage() {
   const user = cookieStore.get("app_user")?.value;
   if (!user) redirect("/login");
 
-  // We now let the Client Component (Dashboard) handle data fetching
-  // This allows for "Instant Load" from cache and background syncing.
+  // Pre-fetch global data for SSR (Instant first load)
+  const initialData = await getDashboardData();
   
-  return <Dashboard />;
+  return (
+    <Dashboard 
+      initialSheets={initialData?.sheets || []}
+      initialTransactions={initialData?.allTransactions || []}
+      initialGoal={initialData?.goal || 0}
+      initialUnitGoal={initialData?.unitGoal || null}
+      initialUsername={initialData?.profile?.displayName || initialData?.profile?.username || "Unknown"}
+    />
+  );
 }

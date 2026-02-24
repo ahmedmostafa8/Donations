@@ -80,7 +80,7 @@ export function LoginForm() {
           description: "تأكد من كتابة الاسم بشكل صحيح."
         });
       }
-    } catch (err) {
+    } catch {
       toast.error("حدث خطأ ما");
     } finally {
       setLoading(false);

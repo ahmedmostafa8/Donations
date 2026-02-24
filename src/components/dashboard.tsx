@@ -1,9 +1,10 @@
 "use client";
 import { useRouter } from "next/navigation";
 
-import { useState, useEffect, useRef } from "react";
-import { Home, Plus, Download, Trash2, Loader2, Coins, User, StickyNote, X, Pencil, Check, LogOut, PieChart as PieChartIcon, Settings, Wallet, Target, Package, DollarSign, Database, Grid3X3, FolderOpen, ChevronLeft } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Home, Plus, Trash2, Loader2, X, Pencil, Check, LogOut, PieChart as PieChartIcon, Settings, DollarSign, Grid3X3, FolderOpen, ChevronLeft, Wallet, Target, Package, Coins, Database, Download, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 import { StatisticsView } from "./statistics-view";
 import {
   ContextMenu,
@@ -13,10 +14,11 @@ import {
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
 import { TransactionList } from "./transaction-list";
+import { SearchInput } from "./search-input";
 import { NavigationHub } from "./navigation-hub"; // Import Hub
 import { supabase } from "@/lib/supabase";
 import { useSwipeTabs } from "@/hooks/use-swipe-tabs";
-import { clearAllTransactions, getTransactions, createSheet, deleteSheet, logoutUser, renameSheet, type UnitGoalSettings } from "@/app/actions";
+import { clearAllTransactions, createSheet, deleteSheet, logoutUser, renameSheet, type UnitGoalSettings, type Transaction } from "@/app/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,9 +36,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
@@ -53,9 +53,9 @@ export function Dashboard({
   initialUsername = "جاري التحميل..."
 }: {
   initialSheets?: string[],
-  initialTransactions?: any[],
+  initialTransactions?: Transaction[],
   initialGoal?: number,
-  initialUnitGoal?: any,
+  initialUnitGoal?: UnitGoalSettings | null,
   initialUsername?: string
 }) {
   // --- Cache Keys ---
@@ -65,20 +65,21 @@ export function Dashboard({
   // --- State Initialization ---
   // We initialize with props if available which avoids hydration mismatch. 
   // Cache loading happens in useEffect for client-side speed.
-  const [currentSheet, setCurrentSheet] = useState(initialSheets[0] || "Donation");
-  const [allSheets, setAllSheets] = useState<string[]>(initialSheets.length > 0 ? initialSheets : ["Donation"]);
-  const [transactions, setTransactions] = useState<any[]>(initialTransactions);
+  const [currentSheet, setCurrentSheet] = useState(initialSheets[0] || "تبرعاتي");
+  const [allSheets, setAllSheets] = useState<string[]>(initialSheets.length > 0 ? initialSheets : ["تبرعاتي"]);
+  
+  // Turbo Mode: Global transactions state
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>(initialTransactions || []);
   
   // Goals State
-  const [goals, setGoals] = useState<Record<string, number>>({ [initialSheets[0] || "Donation"]: initialGoal });
-  const [unitGoals, setUnitGoals] = useState<Record<string, UnitGoalSettings>>({ [initialSheets[0] || "Donation"]: initialUnitGoal });
+  const [goals, setGoals] = useState<Record<string, number>>({ [initialSheets[0] || "تبرعاتي"]: initialGoal });
+  const [unitGoals, setUnitGoals] = useState<Record<string, UnitGoalSettings | null>>({ [initialSheets[0] || "تبرعاتي"]: initialUnitGoal });
   
   const [username, setUsername] = useState(initialUsername !== "Unknown" ? initialUsername : "جاري التحميل...");
 
   // ... (Other UI states like edit mode, modal visibility, etc. kept as is) ...
   const [viewMode, setViewMode] = useState<'list' | 'stats' | 'settings'>('list');
   const [isNavOpen, setIsNavOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   // Swipe Navigation for Tabs
   const goToNextTab = () => {
@@ -98,22 +99,24 @@ export function Dashboard({
     threshold: 60,
   });
   const [newTabName, setNewTabName] = useState("");
-  const [isCreatingTab, setIsCreatingTab] = useState(false);
-  const [showAddTabModal, setShowAddTabModal] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [editingTab, setEditingTab] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
   const [goalsLoading, setGoalsLoading] = useState<Record<string, boolean>>({});
+
+  const [showAddTabModal, setShowAddTabModal] = useState(false);
+
+
 
   // Sidebar Inline State
   const [isSidebarCreating, setIsSidebarCreating] = useState(false);
   const [newSidebarTabName, setNewSidebarTabName] = useState("");
 
+  // Search State
+  const [searchTerm, setSearchTerm] = useState("");
+
   const [editingSidebarSheet, setEditingSidebarSheet] = useState<string | null>(null);
   const [renameSidebarValue, setRenameSidebarValue] = useState("");
   const [sheetToDelete, setSheetToDelete] = useState<string | null>(null);
   
-  const longPressTimer = useRef<NodeJS.Timeout>(null);
   const goalDebounce = useRef<NodeJS.Timeout>(null);
   const unitTargetDebounce = useRef<NodeJS.Timeout>(null);
   const unitNameDebounce = useRef<NodeJS.Timeout>(null);
@@ -131,66 +134,69 @@ export function Dashboard({
 
         if (cachedData) {
           const parsed = JSON.parse(cachedData);
-          // Apply cache if props were empty (CSR mode) or to ensure latest client state
-          if (initialSheets.length === 0) {
-            if (parsed.sheets?.length) {
-                setAllSheets(parsed.sheets);
-                setCurrentSheet(parsed.sheets[0]);
-            }
-            if (parsed.transactions) setTransactions(parsed.transactions);
-            if (parsed.goals) setGoals(parsed.goals);
-            if (parsed.unitGoals) setUnitGoals(parsed.unitGoals);
-          }
+          if (parsed.sheets?.length) setAllSheets(parsed.sheets);
+          if (parsed.allTransactions) setAllTransactions(parsed.allTransactions);
+          if (parsed.goals) setGoals(parsed.goals);
+          if (parsed.unitGoals) setUnitGoals(parsed.unitGoals);
         }
         
-        if (cachedUser && initialUsername === "جاري التحميل...") {
-             setUsername(cachedUser);
-        }
-      } catch (e) {
-        console.error("Cache load error", e);
-      }
+        if (cachedUser) setUsername(cachedUser);
+      } catch {}
 
-      // B. Fetch Fresh Data (Background)
+      // B. Fetch Fresh Data (Background Sync)
       try {
-        import("@/app/actions").then(async ({ getDashboardData }) => {
-            const data = await getDashboardData(currentSheet);
+        const { getDashboardData } = await import("@/app/actions");
+        const data = await getDashboardData(currentSheet);
+        if (!data) return;
 
-            const { profile, sheets, activeSheet, transactions: txs, goal: g, unitGoal: ug } = data;
+        const { profile, sheets, allTransactions: freshTxs, goal: g, unitGoal: ug } = data;
 
-            // 1. Update Profile
-            const name = profile?.displayName || profile?.username || "User";
-            setUsername(name);
-            localStorage.setItem(STORAGE_KEY_USER, name);
+        // 1. Update Profile
+        const name = profile?.displayName || profile?.username || "User";
+        setUsername(name);
+        localStorage.setItem(STORAGE_KEY_USER, name);
 
-            // 2. Update Sheets & Data
-            if (sheets.length > 0) {
-                setAllSheets(sheets);
-                if (activeSheet !== currentSheet && !sheets.includes(currentSheet)) {
-                   setCurrentSheet(activeSheet);
-                }
-                
-                setTransactions(txs);
-                setGoals(prev => ({ ...prev, [activeSheet]: g }));
-                setUnitGoals(prev => ({ ...prev, [activeSheet]: ug }));
-
-                // Update Cache
-                const cachePayload = {
-                    sheets,
-                    transactions: txs,
-                    goals: { ...goals, [activeSheet]: g },
-                    unitGoals: { ...unitGoals, [activeSheet]: ug}
-                };
-                localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(cachePayload));
+        // 2. Update Sheets & Data
+        if (sheets.length > 0) {
+            setAllSheets(sheets);
+            setAllTransactions(freshTxs);
+            
+            // If current tab doesn't exist in fresh data, switch to first one
+            if (!sheets.includes(currentSheet)) {
+                setCurrentSheet(sheets[0]);
             }
-        });
 
+            setGoals(prev => ({ ...prev, [data.activeSheet]: g }));
+            setUnitGoals(prev => ({ ...prev, [data.activeSheet]: ug }));
+
+            // Update Cache for NEXT reload
+            const cachePayload = {
+                sheets,
+                allTransactions: freshTxs,
+                goals: { ...goals, [data.activeSheet]: g },
+                unitGoals: { ...unitGoals, [data.activeSheet]: ug}
+            };
+            localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(cachePayload));
+        }
       } catch (err) {
         console.error("Background fetch error", err);
       }
     };
 
     loadData();
-  }, []); // Run once on mount
+  }, [currentSheet]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update Cache when data changes (snappy persistence)
+  useEffect(() => {
+    if (!mounted) return;
+    const cachePayload = {
+        sheets: allSheets,
+        allTransactions,
+        goals,
+        unitGoals
+    };
+    localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(cachePayload));
+  }, [allSheets, allTransactions, goals, unitGoals, mounted]);
 
   // --- Keyboard Shortcuts ---
   useEffect(() => {
@@ -224,7 +230,6 @@ export function Dashboard({
           break;
         case 'Escape':
           setIsNavOpen(false);
-          setEditingTab(null);
           setShowAddTabModal(false);
           // If we lift state for "Add Transaction", we could close it here too
           break;
@@ -240,47 +245,57 @@ export function Dashboard({
 
   // ... (Rest of component logic remains similar) ...
 
-  const handleRenameTab = async () => {
-    if (!editingTab || !renameValue.trim() || renameValue === editingTab) {
-      setEditingTab(null);
-      return;
-    }
+  // handleRenameTab removed (unused)
 
-    const oldName = editingTab;
-    const newName = renameValue.trim();
-
-    // Optimistic update
-    const prevSheets = [...allSheets];
-    const newSheets = allSheets.map(s => s === oldName ? newName : s);
-    setAllSheets(newSheets);
-    if (currentSheet === oldName) setCurrentSheet(newName);
-    setEditingTab(null);
-
-    try {
-      const res = await renameSheet(oldName, newName);
-      if (!res.success) {
-        toast.error("فشل في تغيير الاسم");
-        setAllSheets(prevSheets);
-        if (currentSheet === newName) setCurrentSheet(oldName);
-      }
-    } catch (e) {
-      setAllSheets(prevSheets);
-    }
-  };
 
   // Set mounted state for hydration stability
-  const isInitialMount = useRef(true);
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Client-side Cache
+  // Removed local cachedData in favor of global allTransactions
+  /* 
   const [cachedData, setCachedData] = useState<Record<string, any[]>>({
-    [initialSheets[0] || "Donation"]: initialTransactions
+    [initialSheets[0] || "تبرعاتي"]: initialTransactions
   });
+  */
 
   const router = useRouter();
+
+  // --- Back to Home Logic ---
+  useEffect(() => {
+    // 1. Setup Root Trap (Trap "Back" to go to Home)
+    const initTrap = () => {
+      // If we are not already in our "app" state, push the root state
+      if (!window.history.state?.appRoot) {
+        window.history.pushState({ appRoot: true }, '', window.location.href);
+      }
+    };
+    
+    // Run after mount to ensure router is ready
+    setTimeout(initTrap, 50);
+
+    const handlePopState = () => {
+      // If we are here, we popped the root state.
+      // Redirect to App Selector (Home)
+      router.push('/');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [router]);
+
+  // Save Last Active App
+  useEffect(() => {
+    localStorage.setItem("last_app", "/donations");
+  }, []);
+
   const handleLogout = () => {
+    // Clear Client Cache
+    localStorage.removeItem(STORAGE_KEY_DATA);
+    localStorage.removeItem(STORAGE_KEY_USER);
+    localStorage.removeItem("last_app");
+    
     // Fire-and-forget: redirect immediately, server cleans up in background
     window.location.href = "/login"; // Force hard reload to clear cache
     logoutUser(); // No await - runs in background
@@ -290,53 +305,31 @@ export function Dashboard({
     window.location.href = "/"; // Force reload to ensure App Selector loads fresh
   };
 
+  // Search State
+  // searchTerm is now updated via Debounce from SearchInput, so it doesn't cause lag
+  
+  // Turbo Mode: Derived transactions for current tab & search
+  // Memoized to prevent re-calculations on every render, only when dependencies change
+  const transactions = useMemo(() => {
+    return allTransactions.filter(t => {
+      if (t.category !== currentSheet) return false;
+      
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase().trim();
+        return (
+          t.name.toLowerCase().includes(q) || 
+          (t.note && t.note.toLowerCase().includes(q))
+        );
+      }
+      
+      return true;
+    });
+  }, [allTransactions, currentSheet, searchTerm]);
+
   useEffect(() => {
-    // Use cached data immediately if available
-    if (cachedData[currentSheet]) {
-      setTransactions(cachedData[currentSheet]);
-    }
-
-    const fetchTransactions = async () => {
-      // Skip refetch on initial mount if we already have data from SSR
-      if (isInitialMount.current && cachedData[currentSheet]) {
-        isInitialMount.current = false;
-        return;
-      }
-      isInitialMount.current = false;
-
-      if (!cachedData[currentSheet]) setLoading(true);
-
-      try {
-        const data = await getTransactions(currentSheet);
-        setTransactions(data);
-        setCachedData(prev => ({ ...prev, [currentSheet]: data }));
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTransactions();
-
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'transactions',
-          filter: `category=eq.${currentSheet}`
-        },
-        () => {
-          fetchTransactions();
-        }
-      )
-      .subscribe();
-
     // Parallel Fetch Goal for SPA experience
     const fetchGoal = async () => {
+      // Only fetch if we don't have it yet to avoid loops
       if (goals[currentSheet] === undefined) {
         setGoalsLoading(prev => ({ ...prev, [currentSheet]: true }));
         try {
@@ -363,11 +356,33 @@ export function Dashboard({
       }
     };
     fetchUnitGoal();
+  }, [currentSheet]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Supabase Realtime - Sync changes globally (Run ONCE)
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-tx-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+          // No filter here for Turbo Mode -> Sync everything
+        },
+        async () => {
+          // Refresh ALL data to keep global cache in sync
+          const { getAllTransactions } = await import("@/app/actions");
+          const fresh = await getAllTransactions();
+          setAllTransactions(fresh);
+        }
+      )
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentSheet]);
+  }, []);
 
   const handleCreateTab = () => {
     if (!newTabName.trim()) return;
@@ -378,7 +393,6 @@ export function Dashboard({
     // Optimistic UI: update immediately
     setAllSheets([...allSheets, name]);
     setCurrentSheet(name);
-    setCachedData(prev => ({ ...prev, [name]: [] })); // Initialize empty cache for new tab
     setNewTabName("");
     setShowAddTabModal(false);
 
@@ -411,27 +425,26 @@ export function Dashboard({
     try {
       const res = await deleteSheet(sheetName);
       if (!res.success) setAllSheets(previousSheets);
-    } catch (error) {
+    } catch {
       setAllSheets(previousSheets);
     }
   }
 
   const handleDeleteTransaction = async (id: number) => {
-    const prevTransactions = [...transactions];
-    const filtered = transactions.filter(t => t.id !== id);
-    setTransactions(filtered);
-    setCachedData(prev => ({ ...prev, [currentSheet]: filtered }));
+    const prevAllTransactions = [...allTransactions];
+    
+    // Optimistic Delete
+    const filtered = allTransactions.filter(t => t.id !== id);
+    setAllTransactions(filtered);
 
     try {
       const { deleteTransaction } = await import("@/app/actions");
       const res = await deleteTransaction(currentSheet, id);
       if (!res.success) {
-        setTransactions(prevTransactions);
-        setCachedData(prev => ({ ...prev, [currentSheet]: prevTransactions }));
+        setAllTransactions(prevAllTransactions);
       }
-    } catch (e) {
-      setTransactions(prevTransactions);
-      setCachedData(prev => ({ ...prev, [currentSheet]: prevTransactions }));
+    } catch {
+      setAllTransactions(prevAllTransactions);
     }
   }
 
@@ -446,7 +459,6 @@ export function Dashboard({
     const prevSheets = [...allSheets];
     setAllSheets([...allSheets, name]);
     setCurrentSheet(name);
-    setCachedData(prev => ({ ...prev, [name]: [] }));
     setIsSidebarCreating(false);
     setNewSidebarTabName("");
 
@@ -483,7 +495,7 @@ export function Dashboard({
             setAllSheets(prevSheets);
             if (currentSheet === newName) setCurrentSheet(oldName);
         }
-      } catch (e) {
+      } catch {
           setAllSheets(prevSheets);
           if (currentSheet === newName) setCurrentSheet(oldName);
       }
@@ -494,7 +506,7 @@ export function Dashboard({
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20" suppressHydrationWarning>
+    <div className="min-h-screen bg-gray-50 pb-24 md:pb-20" suppressHydrationWarning>
 
       {/* ================= HEADER ================= */}
       <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-5 sticky top-0 z-40 transition-all duration-300">
@@ -514,7 +526,7 @@ export function Dashboard({
                 if (username.includes("ادم")) {
                    return (
                      <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
-                        <img src="/adam.jpg" alt="Avatar" className="w-full h-full object-cover" />
+                        <Image src="/adam.jpg" alt="Avatar" width={48} height={48} className="w-full h-full object-cover" />
                      </div>
                    );
                 }
@@ -522,7 +534,7 @@ export function Dashboard({
                 if (username.includes("نسرين")) {
                    return (
                      <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
-                        <img src="/nesreen.jpg" alt="Avatar" className="w-full h-full object-cover" />
+                        <Image src="/nesreen.jpg" alt="Avatar" width={48} height={48} className="w-full h-full object-cover" />
                      </div>
                    );
                 }
@@ -530,25 +542,20 @@ export function Dashboard({
                 if (username.includes("نور")) {
                    return (
                      <div className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-gray-200 shrink-0 overflow-hidden bg-white">
-                        <img src="/noor.webp" alt="Avatar" className="w-full h-full object-cover" />
-                     </div>
-                   );
-                }
-                
-                // Fallback to Gradient Letter for others (until photos are added)
-                return (
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-gray-200 shrink-0">
-                    {username.slice(0, 1)}
-                  </div>
-                );
-              })()}
-              
-              {/* Menu Indicator Badge */}
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
-                <div className="w-1 h-1 bg-gray-400 rounded-full box-content border-[1.5px] border-white" />
-                <div className="w-1 h-1 bg-gray-400 rounded-full box-content border-[1.5px] border-white ml-[1px]" />
-              </div>
-            </button>
+                            <Image src="/noor.webp" alt="Avatar" width={48} height={48} className="w-full h-full object-cover" />
+                         </div>
+                       );
+                    }
+                    
+                    // Fallback to Gradient Letter for others (until photos are added)
+                    return (
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-gray-200 shrink-0">
+                        {username.slice(0, 1)}
+                      </div>
+                    );
+                  })()}
+                  
+                </button>
 
             <div className="space-y-0.5">
               <h1 className="text-xl font-black text-gray-900 tracking-tight leading-none">
@@ -583,7 +590,7 @@ export function Dashboard({
               <span className="text-xs">الرئيسية</span>
             </button>
              <button
-              onClick={() => setViewMode(prev => prev === 'stats' ? 'list' : 'stats')}
+              onClick={() => setViewMode('stats')}
               className={cn(
                 "h-9 px-4 rounded-lg flex items-center gap-2 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer",
                 viewMode === 'stats'
@@ -595,7 +602,7 @@ export function Dashboard({
               <span className="text-xs">الإحصائيات</span>
             </button>
              <button
-              onClick={() => setViewMode(prev => prev === 'settings' ? 'list' : 'settings')}
+              onClick={() => setViewMode('settings')}
               className={cn(
                 "h-9 px-4 rounded-lg flex items-center gap-2 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer",
                 viewMode === 'settings'
@@ -765,49 +772,7 @@ export function Dashboard({
       <main {...swipeHandlers} className="flex-1 w-full max-w-xl mx-auto px-6 py-4 pb-24 space-y-6 text-right md:px-0 md:py-0 md:max-w-none">
         {/* ================= ACTIONS & DATA SECTION ================= */}
         <section className="space-y-6">
-          <div className="flex items-center justify-center gap-2 px-1 md:hidden">
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm outline-none focus:outline-none focus:ring-0",
-                viewMode === 'list'
-                  ? "bg-primary text-white shadow-primary/30"
-                  : "bg-gray-50 text-gray-400 hover:bg-gray-100"
-              )}
-              title="الرئيسية"
-            >
-              <Home className="w-4 h-4" />
-            </button>
-              <button
-                 onClick={() => setViewMode(prev => prev === 'stats' ? 'list' : 'stats')}
-                 className={cn(
-                   "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm outline-none focus:outline-none focus:ring-0",
-                   viewMode === 'stats' 
-                     ? "bg-emerald-500 text-white shadow-emerald-200" 
-                     : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-                 )}
-                 title="الإحصائيات"
-               >
-                 <PieChartIcon className="w-4 h-4" />
-               </button>
-
-              <button
-                 onClick={() => setViewMode(prev => prev === 'settings' ? 'list' : 'settings')}
-                 className={cn(
-                   "w-9 h-9 rounded-lg flex items-center justify-center transition-colors shadow-sm outline-none focus:outline-none focus:ring-0",
-                   viewMode === 'settings' 
-                     ? "bg-amber-500 text-white shadow-amber-200" 
-                     : "bg-amber-50 text-amber-600 hover:bg-amber-100"
-                 )}
-                 title="الإعدادات"
-               >
-                 <Settings className="w-4 h-4" />
-               </button>
-
-
-
-          </div>
-
+          {/* Redundant navigation icons removed for cleaner UI */}
           {viewMode === 'stats' ? (
             <StatisticsView 
               transactions={transactions}
@@ -1020,7 +985,7 @@ export function Dashboard({
                                     تصدير البيانات؟
                                 </AlertDialogTitle>
                                 <AlertDialogDescription className="text-center text-gray-500 font-medium">
-                                    سيتم تجهيز ملف بصيغة CSV يحتوي على كافة العمليات <br/> المسجلة في دفتر <b>"{currentSheet}"</b>.
+                                    سيتم تجهيز ملف بصيغة CSV يحتوي على كافة العمليات <br/> المسجلة في دفتر <b>&quot;{currentSheet}&quot;</b>.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                         </div>
@@ -1112,7 +1077,7 @@ export function Dashboard({
                                     مسح الدفتر؟
                                 </AlertDialogTitle>
                                 <AlertDialogDescription className="text-center text-gray-500 font-medium">
-                                    هل أنت متأكد من مسح جميع العمليات في <b>"{currentSheet}"</b>؟ <br/>
+                                    هل أنت متأكد من مسح جميع العمليات في <b>&quot;{currentSheet}&quot;</b>؟ <br/>
                                     <span className="text-red-500 font-bold block mt-1">لا يمكن التراجع عن هذا الإجراء وسيتم تصفير الدفتر.</span>
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
@@ -1121,17 +1086,16 @@ export function Dashboard({
                         <AlertDialogFooter className="flex-col-reverse sm:flex-row-reverse sm:space-x-2 w-full gap-2 mt-4">
                              <AlertDialogAction 
                                 onClick={() => {
-                                  const prevTransactions = [...transactions];
-                                  setTransactions([]);
-                                  setCachedData(prev => ({ ...prev, [currentSheet]: [] }));
+                                  const prevAll = [...allTransactions];
+                                  // Optimistic clear for THIS category
+                                  setAllTransactions(allTransactions.filter(t => t.category !== currentSheet));
+                                  
                                   clearAllTransactions(currentSheet).then(res => {
                                     if (!res?.success) {
-                                      setTransactions(prevTransactions);
-                                      setCachedData(prev => ({ ...prev, [currentSheet]: prevTransactions }));
+                                      setAllTransactions(prevAll);
                                     }
                                   }).catch(() => {
-                                    setTransactions(prevTransactions);
-                                    setCachedData(prev => ({ ...prev, [currentSheet]: prevTransactions }));
+                                    setAllTransactions(prevAll);
                                   });
                                 }} 
                                 className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl h-12 font-bold shadow-lg shadow-red-200 focus:outline-none focus:ring-0 transition-all"
@@ -1149,26 +1113,28 @@ export function Dashboard({
               </div>
 
             </div>
-          ) : loading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-50">
-              <Loader2 className="w-10 h-10 text-primary animate-spin" />
-              <p className="font-black text-xs uppercase tracking-widest text-gray-400">جاري التحميل...</p>
-            </div>
           ) : (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-4">
+              {/* Search Bar - Isolated Component for Perf */}
+              <SearchInput 
+                onSearch={setSearchTerm} 
+                placeholder="بحث في العمليات..." 
+              />
+
               <TransactionList
                 transactions={transactions}
                 sheetName={currentSheet}
                 onDelete={handleDeleteTransaction}
                 onUpdate={(newList) => {
-                  setTransactions(newList);
-                  setCachedData(prev => ({ ...prev, [currentSheet]: newList }));
+                  // newList is the filtered list, we need to merge it back into allTransactions
+                  const otherTxs = allTransactions.filter(t => t.category !== currentSheet);
+                  setAllTransactions([...otherTxs, ...newList]);
                 }}
                 onAddSuccess={() => {
-                  getTransactions(currentSheet).then(data => {
-                    setTransactions(data);
-                    setCachedData(prev => ({ ...prev, [currentSheet]: data }));
-                  });
+                   import("@/app/actions").then(async ({ getAllTransactions }) => {
+                      const data = await getAllTransactions();
+                      setAllTransactions(data);
+                   });
                 }}
               />
             </div>
@@ -1241,11 +1207,10 @@ export function Dashboard({
             <div className="space-y-2">
                 <AlertDialogHeader>
                     <AlertDialogTitle className="text-xl font-black text-gray-900 text-center">
-                        حذف "{sheetToDelete}"؟
+                        حذف &quot;{sheetToDelete}&quot;؟
                     </AlertDialogTitle>
                     <AlertDialogDescription className="text-center text-gray-500 font-medium">
-                        هل أنت متأكد من رغبتك في حذف هذا الدفتر؟ <br/>
-                        <span className="text-red-500 font-bold block mt-1">لا يمكن التراجع عن هذا الإجراء وسيتم حذف جميع البيانات.</span>
+                        هل أنت متأكد من حذف هذا الدفتر؟ لا يمكن التراجع عن هذا الإجراء وسيتم حذف جميع البيانات المرتبطة به.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
             </div>
@@ -1309,7 +1274,6 @@ export function Dashboard({
            const prevSheets = [...allSheets];
            setAllSheets([...allSheets, newName]);
            setCurrentSheet(newName);
-           setCachedData(prev => ({ ...prev, [newName]: [] }));
 
            createSheet(newName).then(res => {
              if (!res.success) {
@@ -1323,6 +1287,55 @@ export function Dashboard({
            });
         }}
       />
+
+      {/* ================= MOBILE BOTTOM NAVIGATION ================= */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden">
+        <div className="bg-white/95 backdrop-blur-3xl border-t border-gray-100 shadow-[0_-4px_25px_rgba(0,0,0,0.04)] rounded-t-[1.2rem] px-6 pt-3 pb-2.5 flex items-center justify-between">
+          
+          {/* Home Tab */}
+          <button
+            onClick={() => setViewMode('list')}
+            className={cn(
+              "flex-1 flex flex-col items-center gap-0.5 transition-all active:scale-95",
+              viewMode === 'list' 
+                ? "text-emerald-600" 
+                : "text-gray-400 hover:text-gray-600"
+            )}
+          >
+            <Home className={cn("w-7 h-7", viewMode === 'list' ? "stroke-[2.5px]" : "stroke-[1.5px]")} />
+            <span className={cn("text-[11px] font-black tracking-tight", viewMode === 'list' ? "opacity-100" : "opacity-60")}>الرئيسية</span>
+          </button>
+
+          {/* Stats Tab */}
+          <button
+            onClick={() => setViewMode('stats')}
+            className={cn(
+              "flex-1 flex flex-col items-center gap-0.5 transition-all active:scale-95",
+              viewMode === 'stats' 
+                ? "text-indigo-600" 
+                : "text-gray-400 hover:text-gray-600"
+            )}
+          >
+            <PieChartIcon className={cn("w-7 h-7", viewMode === 'stats' ? "stroke-[2.5px]" : "stroke-[1.5px]")} />
+            <span className={cn("text-[11px] font-black tracking-tight", viewMode === 'stats' ? "opacity-100" : "opacity-60")}>الإحصائيات</span>
+          </button>
+
+          {/* Settings Tab */}
+          <button
+            onClick={() => setViewMode('settings')}
+            className={cn(
+              "flex-1 flex flex-col items-center gap-0.5 transition-all active:scale-95",
+              viewMode === 'settings' 
+                ? "text-amber-600" 
+                : "text-gray-400 hover:text-gray-600"
+            )}
+          >
+            <Settings className={cn("w-7 h-7", viewMode === 'settings' ? "stroke-[2.5px]" : "stroke-[1.5px]")} />
+            <span className={cn("text-[11px] font-black tracking-tight", viewMode === 'settings' ? "opacity-100" : "opacity-60")}>الإعدادات</span>
+          </button>
+
+        </div>
+      </div>
     </div>
   );
 }

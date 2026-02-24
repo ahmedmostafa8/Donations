@@ -20,7 +20,15 @@ const withPWA = withPWAInit({
 export default withPWA({
   // Your Next.js config
   reactStrictMode: true,
-  turbopack: {},
+  turbopack: {}, // Explicitly enable/configure Turbopack to silence warning
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
+    ],
+  },
 });
 
 // Temporary fix: Export standard config to debug server actions

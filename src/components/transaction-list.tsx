@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Trash2, Pencil, Check, X, Loader2, Plus } from "lucide-react";
-import { updateTransaction, addTransaction } from "@/app/actions";
+import { updateTransaction, addTransaction, type Transaction } from "@/app/actions";
 import { cn } from "@/lib/utils";
 import {
     AlertDialog,
@@ -15,14 +15,6 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
-interface Transaction {
-    id: number;
-    date: string;
-    name: string;
-    amount: number;
-    note: string;
-}
 
 export function TransactionList({
     transactions,
@@ -38,7 +30,7 @@ export function TransactionList({
     onAddSuccess?: () => void
 }) {
     const [editingId, setEditingId] = useState<number | null>(null);
-    const [editData, setEditData] = useState<any>(null);
+    const [editData, setEditData] = useState<Record<string, string> | null>(null);
     const [isBusy, setIsBusy] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -48,7 +40,11 @@ export function TransactionList({
 
     const handleStartEdit = (t: Transaction) => {
         setEditingId(t.id);
-        setEditData({ ...t });
+        setEditData({ 
+            name: t.name, 
+            amount: t.amount.toString(), 
+            note: t.note || "" 
+        });
         setIsAdding(false);
     };
 
@@ -57,18 +53,18 @@ export function TransactionList({
 
         const originalTransactions = [...transactions];
         const updatedTransactions = transactions.map(t =>
-            t.id === editingId ? { ...t, ...editData, amount: parseFloat(editData.amount) || 0 } : t
+            t.id === editingId ? { ...t, date: t.date, createdAt: t.createdAt, category: t.category, name: editData.name, amount: parseFloat(editData.amount) || 0, note: editData.note } : t
         );
         
         // Optimistic UI: update immediately and close edit mode
-        if (onUpdate) onUpdate(updatedTransactions as any);
+        if (onUpdate) onUpdate(updatedTransactions);
         const savedEditingId = editingId;
         setEditingId(null);
 
         // Save in background (no waiting)
         updateTransaction(sheetName, savedEditingId!, {
             name: editData.name,
-            amount: editData.amount.toString(),
+            amount: editData.amount,
             note: editData.note || ""
         }).then(res => {
             if (!res.success && onUpdate) {
@@ -79,7 +75,11 @@ export function TransactionList({
             if (onUpdate) onUpdate(originalTransactions);
         });
     };
-
+    
+    // Actually, let's just target the specific blocks.
+    
+    // ...
+    
     const handleSaveAdd = async () => {
         if (!newData.name || !newData.amount || !sheetName) return;
         
@@ -94,9 +94,11 @@ export function TransactionList({
                 year: 'numeric', month: '2-digit', day: '2-digit',
                 hour: '2-digit', minute: '2-digit'
             }),
+            createdAt: new Date().toISOString(),
             name: newData.name,
             amount: finalAmount,
-            note: newData.note
+            note: newData.note,
+            category: sheetName
         };
 
         // Immediately add to UI (optimistic update)
@@ -113,7 +115,7 @@ export function TransactionList({
         const formData = new FormData();
         formData.append("name", optimisticTransaction.name);
         formData.append("amount", finalAmount.toString());
-        formData.append("note", optimisticTransaction.note);
+        formData.append("note", optimisticTransaction.note || "");
 
         try {
             const res = await addTransaction(formData, sheetName);
@@ -136,13 +138,20 @@ export function TransactionList({
         setDeletingId(null);
     }
 
+    const [selectedId, setSelectedId] = useState<number | null>(null);
+
+    const toggleSelection = (id: number) => {
+        if (selectedId === id) setSelectedId(null);
+        else setSelectedId(id);
+    };
+
     return (
         <div className="flex flex-col gap-2 relative">
 
-            {/* ================= ADD NEW FORM ================= */}
+            {/* ... Add New Form (unchanged) ... */}
             {!isAdding ? (
                 <button
-                    onClick={() => { setIsAdding(true); setEditingId(null); }}
+                    onClick={() => { setIsAdding(true); setEditingId(null); setSelectedId(null); }}
                     className="w-full py-2.5 border border-dashed border-gray-200 rounded-xl text-gray-400 font-bold flex items-center justify-center gap-2 hover:border-primary/50 hover:text-primary transition-all active:scale-[0.98] bg-white text-[13px] shadow-sm"
                 >
                     <Plus className="w-3.5 h-3.5" />
@@ -234,23 +243,31 @@ export function TransactionList({
 
             {/* ================= LIST ROWS ================= */}
             {transactions.map((t) => (
-                <div key={t.id} className={cn(
-                    "card-simple py-2 px-3 group transition-all",
-                    editingId === t.id && "border-blue-200 ring-4 ring-blue-50"
-                )}>
+                <div 
+                    key={t.id} 
+                    onClick={() => !editingId && toggleSelection(t.id)}
+                    className={cn(
+                        "card-simple py-2 px-3 group transition-all select-none cursor-pointer active:scale-[0.99]",
+                        editingId === t.id && "border-blue-200 ring-4 ring-blue-50 cursor-default active:scale-100",
+                        selectedId === t.id && !editingId && "bg-gray-50 border-gray-300 ring-1 ring-gray-100"
+                    )}
+                >
                     {editingId === t.id ? (
                         <div className="flex items-center gap-2">
                             {/* RIGHT Side (First in RTL): Data Inputs */}
                             <div className="flex-1 flex flex-col gap-1.5">
                                 <input
                                     className="input-simple text-[14px] h-9 px-3 font-bold w-full text-right"
-                                    value={editData.name}
-                                    onChange={e => setEditData({ ...editData, name: e.target.value })}
+                                    value={editData?.name || ""}
+                                    autoFocus
+                                    onClick={e => e.stopPropagation()}
+                                    onChange={e => setEditData(prev => prev ? ({ ...prev, name: e.target.value }) : null)}
                                 />
                                 <input
                                     className="input-simple text-[13px] h-9 px-3 font-bold w-full text-right"
-                                    value={editData.note || ""}
-                                    onChange={e => setEditData({ ...editData, note: e.target.value })}
+                                    value={editData?.note || ""}
+                                    onClick={e => e.stopPropagation()}
+                                    onChange={e => setEditData(prev => prev ? ({ ...prev, note: e.target.value }) : null)}
                                     placeholder="ملاحظة"
                                 />
                             </div>
@@ -261,20 +278,21 @@ export function TransactionList({
                                     type="number"
                                     inputMode="decimal"
                                     className="input-simple text-[13px] h-9 w-20 px-2 font-black border-blue-200 text-center bg-blue-50/50 rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    value={editData.amount}
-                                    onChange={e => setEditData({ ...editData, amount: e.target.value })}
+                                    value={editData?.amount || ""}
+                                    onClick={e => e.stopPropagation()}
+                                    onChange={e => setEditData(prev => prev ? ({ ...prev, amount: e.target.value }) : null)}
                                 />
                                 <div className="w-px h-8 bg-gray-100 mx-0.5" />
                                 <div className="flex flex-col gap-1 shrink-0">
                                     <button
-                                        onClick={handleSaveEdit}
+                                        onClick={(e) => { e.stopPropagation(); handleSaveEdit(); }}
                                         disabled={isBusy}
                                         className="w-8 h-8 bg-emerald-500 text-white rounded-lg flex items-center justify-center active:scale-95 transition-all shadow-md"
                                     >
                                         {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-4.5 h-4.5 stroke-[3px]" />}
                                     </button>
                                     <button
-                                        onClick={() => setEditingId(null)}
+                                        onClick={(e) => { e.stopPropagation(); setEditingId(null); setSelectedId(null); }}
                                         className="w-8 h-8 bg-white border border-gray-100 text-gray-400 rounded-lg flex items-center justify-center active:scale-95 transition-all"
                                     >
                                         <X className="w-4.5 h-4.5 stroke-[3px]" />
@@ -285,7 +303,7 @@ export function TransactionList({
                     ) : (
                         <div className="flex items-center justify-between gap-3">
                             {/* RIGHT Side (First in RTL): Name and Note (Expanded) */}
-                            <div className="flex-1 flex flex-col gap-0 text-right min-w-0 justify-center">
+                            <div className="flex-1 flex flex-col gap-0 text-right min-w-0 justify-center pointer-events-none"> {/* Disable pointer events so click hits parent */}
                                 <div className="font-bold text-gray-900 text-[15px] leading-tight truncate">{t.name}</div>
                                 {t.note && (
                                     <div className="text-[11px] text-gray-400 font-bold truncate">
@@ -311,58 +329,73 @@ export function TransactionList({
                                     </div>
                                 </div>
 
-                                <div className="w-px h-6 bg-gray-100 mx-0.5" />
-
-                                <div className="flex items-center gap-1.5">
-                                    <button
-                                        onClick={() => handleStartEdit(t)}
-                                        className="w-7 h-7 bg-blue-50 text-blue-500 rounded-lg flex items-center justify-center hover:bg-blue-100 transition-all active:scale-90"
-                                        title="تعديل"
-                                    >
-                                        <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <button
-                                                className="w-7 h-7 bg-red-50 text-red-500 rounded-lg flex items-center justify-center hover:bg-red-100 transition-all active:scale-90"
-                                                title="حذف"
+                                {/* Conditional Render: ONLY if selectedId matches */}
+                                {selectedId === t.id && (
+                                    <div className="flex items-center gap-1.5 animate-in slide-in-from-right-2 duration-200">
+                                        <div className="w-px h-6 bg-gray-100 mx-0.5" />
+                                        
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleStartEdit(t); }}
+                                            className="w-7 h-7 bg-blue-50 text-blue-500 rounded-lg flex items-center justify-center hover:bg-blue-100 transition-all active:scale-90"
+                                            title="تعديل"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <button
+                                                    onClick={(e) => e.stopPropagation()} // Stop click on trigger
+                                                    className="w-7 h-7 bg-red-50 text-red-500 rounded-lg flex items-center justify-center hover:bg-red-100 transition-all active:scale-90"
+                                                    title="حذف"
+                                                >
+                                                    {deletingId === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                                </button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent 
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="max-w-md w-full rounded-[2rem] p-0 overflow-hidden border-0 shadow-2xl focus:outline-none"
                                             >
-                                                {deletingId === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                                            </button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent className="max-w-md w-full rounded-[2rem] p-0 overflow-hidden border-0 shadow-2xl focus:outline-none">
-                                            <div className="p-8 flex flex-col items-center text-center gap-4 bg-white">
-                                                <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-2 animate-in zoom-in-50 duration-300">
-                                                    <Trash2 className="w-8 h-8 text-red-500 stroke-[1.5]" />
-                                                </div>
-                                                
-                                                <div className="space-y-2">
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle className="text-xl font-black text-gray-900 text-center">
-                                                            حذف العملية؟
-                                                        </AlertDialogTitle>
-                                                        <AlertDialogDescription className="text-center text-gray-500 font-medium px-4">
-                                                            هل أنت متأكد من حذف هذه العملية؟ <br/>
-                                                            <span className="text-red-500 font-bold block mt-1">لا يمكن التراجع عن هذا الإجراء.</span>
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                </div>
+                                                {/* Dialog Content Unchanged */}
+                                                <div className="p-8 flex flex-col items-center text-center gap-4 bg-white">
+                                                    <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-2 animate-in zoom-in-50 duration-300">
+                                                        <Trash2 className="w-8 h-8 text-red-500 stroke-[1.5]" />
+                                                    </div>
+                                                    
+                                                    <div className="space-y-2">
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle className="text-xl font-black text-gray-900 text-center">
+                                                                حذف العملية؟
+                                                            </AlertDialogTitle>
+                                                            <AlertDialogDescription className="text-center text-gray-500 font-medium px-4">
+                                                                هل أنت متأكد من حذف هذه العملية؟ <br/>
+                                                                <span className="text-red-500 font-bold block mt-1">لا يمكن التراجع عن هذا الإجراء.</span>
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                    </div>
 
-                                                <AlertDialogFooter className="flex-col-reverse sm:flex-row-reverse sm:space-x-2 w-full gap-2 mt-4">
-                                                    <AlertDialogAction 
-                                                        onClick={() => handleInternalDelete(t.id)} 
-                                                        className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl h-12 font-bold shadow-lg shadow-red-200 focus:outline-none focus:ring-0 transition-all"
-                                                    >
-                                                        نعم، احذف
-                                                    </AlertDialogAction>
-                                                    <AlertDialogCancel className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border-0 rounded-xl h-12 font-bold focus:outline-none focus:ring-0 transition-all">
-                                                        تراجع
-                                                    </AlertDialogCancel>
-                                                </AlertDialogFooter>
-                                            </div>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </div>
+                                                    <AlertDialogFooter className="flex-col-reverse sm:flex-row-reverse sm:space-x-2 w-full gap-2 mt-4">
+                                                        <AlertDialogAction 
+                                                            onClick={(e) => { e.stopPropagation(); handleInternalDelete(t.id); }} 
+                                                            className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl h-12 font-bold shadow-lg shadow-red-200 focus:outline-none focus:ring-0 transition-all"
+                                                            variant="destructive"
+                                                            size="default"
+                                                        >
+                                                            نعم، احذف
+                                                        </AlertDialogAction>
+                                                        <AlertDialogCancel 
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border-0 rounded-xl h-12 font-bold focus:outline-none focus:ring-0 transition-all"
+                                                            variant="outline"
+                                                            size="default"
+                                                        >
+                                                            تراجع
+                                                        </AlertDialogCancel>
+                                                    </AlertDialogFooter>
+                                                </div>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

@@ -2,10 +2,9 @@
 
 import { useMemo } from "react";
 import { 
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid 
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend
 } from "recharts";
-import { TrendingUp, Loader2, Package, Target, Wallet, Sparkles, Hourglass, PartyPopper } from "lucide-react";
+import { TrendingUp, Package, Target, Wallet, Hourglass, PartyPopper } from "lucide-react";
 import { type UnitGoalSettings } from "@/app/actions";
 import confetti from "canvas-confetti";
 import { useEffect } from "react";
@@ -17,7 +16,7 @@ interface Transaction {
   createdAt: string;
   name: string;
   amount: number;
-  note: string;
+  note: string | null;
 }
 
 interface StatisticsViewProps {

@@ -26,6 +26,12 @@ export function AppSelector({ username }: AppSelectorProps) {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
+    
+    // Clear Client Cache (All possible keys)
+    localStorage.removeItem("donations_data_v2");
+    localStorage.removeItem("donations_user_v1");
+    localStorage.removeItem("last_app");
+    
     const { logoutUser } = await import("@/app/actions");
     await logoutUser();
     // Force hard reload to clear all client-side cache

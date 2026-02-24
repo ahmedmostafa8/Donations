@@ -7,15 +7,14 @@ import {
   X, 
   FolderOpen,
   Check,
-  ChevronLeft,
   Users,
   Pencil,
   Trash2,
-  MoreVertical,
   Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import Image from "next/image";
+import { useCallback } from "react";
 
 interface NavigationHubProps {
   isOpen: boolean;
@@ -71,6 +70,16 @@ export function NavigationHub({
     setNewTabValue("");
   };
 
+  const handleClose = useCallback(() => {
+    setClosing(true);
+    setTimeout(() => {
+      setClosing(false);
+      onClose();
+      setEditingSheet(null);
+      setOpenMenu(null);
+    }, 300);
+  }, [onClose]);
+
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -87,17 +96,7 @@ export function NavigationHub({
       document.removeEventListener("mousedown", handleClickOutside);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen]);
-
-  const handleClose = () => {
-    setClosing(true);
-    setTimeout(() => {
-      setClosing(false);
-      onClose();
-      setEditingSheet(null);
-      setOpenMenu(null);
-    }, 300);
-  };
+  }, [isOpen, handleClose]);
 
   const handleSwitchToFamilies = () => {
     window.location.href = "/families";
@@ -148,7 +147,7 @@ export function NavigationHub({
   if (!isOpen && !closing) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 isolate" dir="rtl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 isolate" dir="rtl">
       {/* Backdrop */}
       <div 
         className={cn(
@@ -178,7 +177,7 @@ export function NavigationHub({
             </div>
             <h3 className="text-white font-bold text-xl mb-2">حذف الدفتر؟</h3>
             <p className="text-gray-400 text-sm mb-8">
-              هل أنت متأكد من حذف <span className="text-white font-bold">"{deleteConfirmation}"</span>؟
+              هل أنت متأكد من حذف <span className="text-white font-bold">&quot;{deleteConfirmation}&quot;</span>؟
               <br/>لا يمكن التراجع عن هذا الإجراء.
             </p>
             <div className="flex w-full gap-3">
@@ -207,11 +206,11 @@ export function NavigationHub({
                 <div className="w-12 h-12 rounded-full p-[2px] bg-gradient-to-br from-amber-400 to-orange-600">
                   <div className="w-full h-full rounded-full bg-[#0a0a0f] flex items-center justify-center overflow-hidden">
                      {username && username.includes("ادم") ? (
-                        <img src="/adam.jpg" alt="Avatar" className="w-full h-full object-cover" />
+                        <Image src="/adam.jpg" alt="Avatar" width={48} height={48} className="w-full h-full object-cover" />
                      ) : username && username.includes("نسرين") ? (
-                        <img src="/nesreen.jpg" alt="Avatar" className="w-full h-full object-cover" />
+                        <Image src="/nesreen.jpg" alt="Avatar" width={48} height={48} className="w-full h-full object-cover" />
                      ) : username && username.includes("نور") ? (
-                        <img src="/noor.webp" alt="Avatar" className="w-full h-full object-cover" />
+                        <Image src="/noor.webp" alt="Avatar" width={48} height={48} className="w-full h-full object-cover" />
                      ) : (
                        <span className="text-white font-bold text-lg">{username ? username.slice(0, 1) : 'U'}</span>
                      )}

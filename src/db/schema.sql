@@ -38,3 +38,45 @@ CREATE TABLE public.transactions (
   CONSTRAINT transactions_pkey PRIMARY KEY (id),
   CONSTRAINT transactions_owner_name_fkey FOREIGN KEY (owner_name) REFERENCES public.app_users(username)
 );
+
+-- Families
+CREATE TABLE public.families (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  family_code integer NOT NULL,
+  wife_name text NOT NULL,
+  wife_national_id text,
+  wife_phone text,
+  wife_job text DEFAULT 'لا تعمل',
+  husband_name text,
+  husband_status text DEFAULT 'متواجد',
+  husband_national_id text,
+  husband_phone text,
+  husband_job text DEFAULT 'لا يعمل',
+  address text,
+  housing_condition text,
+  income_details text,
+  status text NOT NULL,
+  attachments jsonb DEFAULT '[]'::jsonb,
+  research_date date,
+  researcher_name text,
+  researcher_phone text,
+  researcher_perspective text,
+  reference_person text,
+  reference_phone text,
+  notes text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT families_pkey PRIMARY KEY (id)
+);
+
+-- Family Children
+CREATE TABLE public.family_children (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  family_id bigint NOT NULL,
+  child_type text NOT NULL,
+  child_name text NOT NULL,
+  child_age integer,
+  child_education text,
+  CONSTRAINT family_children_pkey PRIMARY KEY (id),
+  CONSTRAINT family_children_family_id_fkey FOREIGN KEY (family_id) REFERENCES public.families(id) ON DELETE CASCADE
+);

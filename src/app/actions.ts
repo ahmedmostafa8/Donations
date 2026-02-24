@@ -25,8 +25,8 @@ export async function loginUser(username: string) {
     });
 
     return { success: true };
-  } catch (e) {
-    return { success: false };
+  } catch {
+    return { success: false, error: "User not found" };
   }
 }
 
@@ -55,7 +55,7 @@ export async function getUserProfile() {
       username,
       displayName: data?.display_name || username
     };
-  } catch (e) {
+  } catch {
     return { username, displayName: username };
   }
 }
@@ -63,7 +63,7 @@ export async function getUserProfile() {
 export async function getSheets() {
   try {
     const user = await getCurrentUser();
-    if (!user) return ["Donation"]; // Silent return for unauthenticated revalidations
+    if (!user) return ["تبرعاتي"]; // Silent return for unauthenticated revalidations
 
     const { data, error } = await supabase
       .from('categories')
@@ -79,18 +79,18 @@ export async function getSheets() {
       const { error: insertError } = await supabase
         .from('categories')
         .upsert(
-          [{ name: "Donation", owner_name: user }],
+          [{ name: "تبرعاتي", owner_name: user }],
           { onConflict: 'name, owner_name', ignoreDuplicates: true }
         );
 
       if (insertError) console.error("Auto-create error details:", JSON.stringify(insertError, null, 2));
 
-      return ["Donation"];
+      return ["تبرعاتي"];
     }
     return categories;
   } catch (error) {
     console.error("Error fetching categories:", error);
-    return ["Donation"];
+    return ["تبرعاتي"];
   }
 }
 
@@ -133,6 +133,17 @@ export async function updateCategoryGoal(sheetName: string, goal: number) {
   }
 }
 
+// Transaction Helper Type
+export interface Transaction {
+  id: number;
+  date: string;
+  createdAt: string;
+  name: string;
+  amount: number;
+  note: string | null;
+  category: string;
+}
+
 // Unit Goal Types & Actions
 export interface UnitGoalSettings {
   enabled: boolean;
@@ -161,7 +172,7 @@ export async function getUnitGoal(sheetName: string): Promise<UnitGoalSettings> 
       unitPrice: parseFloat(data.unit_price) || 0,
       unitTarget: parseInt(data.unit_target) || 0,
     };
-  } catch (e) {
+  } catch {
     return { enabled: false, unitName: '', unitPrice: 0, unitTarget: 0 };
   }
 }
@@ -264,10 +275,41 @@ export async function renameSheet(oldName: string, newName: string) {
   }
 }
 
-export async function getTransactions(sheetName: string = "Donation") {
+export async function getAllTransactions() {
   try {
     const user = await getCurrentUser();
-    if (!user) return []; // Silent return for unauthenticated revalidations
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('owner_name', user)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return data.map(t => ({
+      id: t.id,
+      date: new Date(t.created_at).toLocaleString('ar-EG', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      }),
+      createdAt: t.created_at,
+      name: t.name,
+      amount: parseFloat(t.amount) || 0,
+      note: t.note,
+      category: t.category, // Include category for client-side filtering
+    }));
+  } catch (error) {
+    console.error("Error fetching all transactions:", error);
+    return [];
+  }
+}
+
+export async function getTransactions(sheetName: string = "تبرعاتي") {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return [];
 
     const { data, error } = await supabase
       .from('transactions')
@@ -288,20 +330,15 @@ export async function getTransactions(sheetName: string = "Donation") {
       name: t.name,
       amount: parseFloat(t.amount) || 0,
       note: t.note,
+      category: t.category,
     }));
-  } catch (error: any) {
-    console.error("Error fetching transactions:", {
-      message: error?.message,
-      details: error?.details,
-      hint: error?.hint,
-      code: error?.code,
-      fullError: error
-    });
+  } catch (error) {
+    console.error("Error fetching transactions:", error);
     return [];
   }
 }
 
-export async function addTransaction(formData: FormData, sheetName: string = "Donation") {
+export async function addTransaction(formData: FormData, sheetName: string = "تبرعاتي") {
   const name = formData.get("name") as string;
   const amount = formData.get("amount") as string;
   const note = formData.get("note") as string;
@@ -392,17 +429,20 @@ export async function updateTransaction(sheetName: string, id: number, data: { n
   }
 }
 
-// Unified Loader
-export async function getDashboardData(sheetName: string = "Donation") {
-  const [profile, sheets] = await Promise.all([
+// Unified Loader (Fetching ALL data for Turbo Mode)
+export async function getDashboardData(sheetName: string = "تبرعاتي") {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  const [profile, sheets, allTransactions] = await Promise.all([
      getUserProfile(),
      getSheets(),
+     getAllTransactions(),
   ]);
 
-  const targetSheet = sheets.includes(sheetName) ? sheetName : (sheets[0] || "Donation");
+  const targetSheet = sheets.includes(sheetName) ? sheetName : (sheets[0] || "تبرعاتي");
 
-  const [transactions, goal, unitGoal] = await Promise.all([
-     getTransactions(targetSheet),
+  const [goal, unitGoal] = await Promise.all([
      getCategoryGoal(targetSheet),
      getUnitGoal(targetSheet),
   ]);
@@ -411,8 +451,9 @@ export async function getDashboardData(sheetName: string = "Donation") {
     profile,
     sheets,
     activeSheet: targetSheet,
-    transactions,
+    allTransactions, // Global set for instant tab switching
     goal,
     unitGoal
   };
 }
+
