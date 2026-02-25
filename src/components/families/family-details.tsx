@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { 
-  X, Pencil, Trash2, Phone, MessageCircle, Copy, User, MapPin, 
+  X, Pencil, Trash2, Phone, MessageCircle, Copy, Check, User, MapPin, 
   Wallet, Heart, Briefcase, Users, ChevronDown, Loader2, Image as ImageIcon,
   ArrowLeft, ArrowRight, FileText, ClipboardList, Calendar
 } from "lucide-react";
@@ -35,6 +35,7 @@ export function FamilyDetails({ family: initialFamily, onClose, onEdit, onDelete
   
   // Image error state to handle broken links
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   
   const attachments = family.attachments || [];
 
@@ -73,7 +74,8 @@ export function FamilyDetails({ family: initialFamily, onClose, onEdit, onDelete
     setFamily(initialFamily);
   }, [initialFamily]);
   
-  const statusColor = STATUS_COLORS[family.status as FamilyStatus] || "gray";
+  const familyStatuses = family.status.split(",").map(s => s.trim()).filter(Boolean);
+  const statusColor = STATUS_COLORS[familyStatuses[0] as FamilyStatus] || "gray";
   
   // Copy to clipboard with fallback
   const copyToClipboard = async (text: string, label: string) => {
@@ -92,6 +94,8 @@ export function FamilyDetails({ family: initialFamily, onClose, onEdit, onDelete
         document.body.removeChild(textArea);
         toast.success(`تم نسخ ${label}`);
       }
+      setCopiedField(text);
+      setTimeout(() => setCopiedField(null), 1500);
     } catch (error) {
       console.error('Failed to copy:', error);
       toast.error('فشل النسخ');
@@ -164,9 +168,18 @@ export function FamilyDetails({ family: initialFamily, onClose, onEdit, onDelete
           {copyable && (
             <button
               onClick={() => copyToClipboard(value, label)}
-              className="w-8 h-8 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-colors"
+              className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200",
+                copiedField === value
+                  ? "bg-emerald-100 text-emerald-600 scale-110"
+                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              )}
             >
-              <Copy className="w-4 h-4" />
+              {copiedField === value ? (
+                <Check className="w-4 h-4" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
             </button>
           )}
           {phone && (
@@ -201,14 +214,22 @@ export function FamilyDetails({ family: initialFamily, onClose, onEdit, onDelete
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-purple-200">
             {family.family_code}
           </div>
-          <div>
+            <div>
             <h2 className="text-lg font-black text-gray-900">{family.wife_name}</h2>
-            <span className={cn(
-              "px-2 py-0.5 rounded-full text-xs font-bold border",
-              style.bg, style.text, style.border
-            )}>
-              {family.status}
-            </span>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {familyStatuses.map((s, i) => {
+                const sColor = STATUS_COLORS[s as FamilyStatus] || "gray";
+                const sStyle = statusStyles[sColor] || statusStyles.gray;
+                return (
+                  <span key={i} className={cn(
+                    "px-2 py-0.5 rounded-full text-xs font-bold border",
+                    sStyle.bg, sStyle.text, sStyle.border
+                  )}>
+                    {s}
+                  </span>
+                );
+              })}
+            </div>
           </div>
         </div>
         <button
@@ -263,21 +284,30 @@ export function FamilyDetails({ family: initialFamily, onClose, onEdit, onDelete
             {family.husband_name && (
               <div className={cn(
                 "rounded-2xl p-5 shadow-sm border",
-                family.husband_status === "متوفي" ? "bg-gray-100 border-gray-200" : "bg-blue-50 border-blue-100"
+                family.husband_status === "متوفي" ? "bg-gray-100 border-gray-200" 
+                : family.husband_status === "منفصل" ? "bg-amber-50 border-amber-100"
+                : "bg-blue-50 border-blue-100"
               )}>
                 <h3 className={cn(
                   "font-black flex items-center gap-2 mb-4 text-base",
-                  family.husband_status === "متوفي" ? "text-gray-600" : "text-blue-800"
+                  family.husband_status === "متوفي" ? "text-gray-600" 
+                  : family.husband_status === "منفصل" ? "text-amber-800"
+                  : "text-blue-800"
                 )}>
                   <User className="w-5 h-5" />
                   بيانات الزوج
                   {family.husband_status === "متوفي" && (
                     <span className="text-red-500 text-sm font-bold">(متوفي)</span>
                   )}
+                  {family.husband_status === "منفصل" && (
+                    <span className="text-amber-500 text-sm font-bold">(منفصل)</span>
+                  )}
                 </h3>
                 <div className={cn(
                   "space-y-1 divide-y",
-                  family.husband_status === "متوفي" ? "divide-gray-200/50" : "divide-blue-200/50"
+                  family.husband_status === "متوفي" ? "divide-gray-200/50" 
+                  : family.husband_status === "منفصل" ? "divide-amber-200/50"
+                  : "divide-blue-200/50"
                 )}>
                   <InfoBlock icon={User} label="الاسم" value={family.husband_name} />
                   {family.husband_status !== "متوفي" && (

@@ -288,10 +288,11 @@ export function FamiliesDashboard({ initialFamilies, initialCounts }: FamiliesDa
 
   // Client-Side Filtering (Instant)
   const families = allFamilies.filter(family => {
-    if (statusFilter && family.status !== statusFilter) return false;
+    if (statusFilter && !family.status.split(",").map(s => s.trim()).includes(statusFilter)) return false;
     
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
+      const childrenNames = (family.children || []).map(c => c.child_name || '').join(' ');
       const searchString = `
         ${family.family_code}
         ${family.husband_name || ''} 
@@ -300,6 +301,11 @@ export function FamiliesDashboard({ initialFamilies, initialCounts }: FamiliesDa
         ${family.wife_phone || ''}
         ${family.husband_national_id || ''}
         ${family.wife_national_id || ''}
+        ${family.address || ''}
+        ${family.area || ''}
+        ${family.street || ''}
+        ${family.governorate || ''}
+        ${childrenNames}
       `.toLowerCase();
       
       return searchString.includes(q);
@@ -432,25 +438,25 @@ export function FamiliesDashboard({ initialFamilies, initialCounts }: FamiliesDa
             families={allFamilies} 
             onBack={() => window.history.back()} 
           />
-        ) : (searchTerm || statusFilter || allFamilies.length > 0) && families.length === 0 ? (
+        ) : families.length === 0 ? (
           /* Empty State */
           <div className="text-center py-16">
             <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
               <Users className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-bold text-gray-800 mb-2">
-              {searchTerm || statusFilter || allFamilies.length > 0
+              {searchTerm || statusFilter
                 ? "لا توجد نتائج"
-                : "لا توجد أسر بعد"
+                : "لا توجد أسر مضافة"
               }
             </h3>
             <p className="text-gray-500 text-sm mb-6">
-              {searchTerm || statusFilter || allFamilies.length > 0
+              {searchTerm || statusFilter
                 ? "جرب البحث بكلمات مختلفة أو غير الفلتر"
                 : "ابدأ بإضافة أول أسرة الآن"
               }
             </p>
-            {!searchTerm && !statusFilter && allFamilies.length === 0 && (
+            {!searchTerm && !statusFilter && (
               <button
                 onClick={openAddForm}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-violet-500 text-white font-bold shadow-lg shadow-violet-200 hover:bg-violet-600 transition-all"

@@ -41,7 +41,7 @@ export async function getFamilies(filters?: {
       .range(from, to);
     
     if (filters?.status) {
-      query = query.eq('status', filters.status);
+      query = query.ilike('status', `%${filters.status}%`);
     }
 
     if (filters?.search) {
@@ -51,7 +51,7 @@ export async function getFamilies(filters?: {
       
       if (s) {
         // Search in multiple columns
-        const searchCondition = `wife_name.ilike.%${s}%,husband_name.ilike.%${s}%,wife_phone.ilike.%${s}%,husband_phone.ilike.%${s}%,wife_national_id.ilike.%${s}%,husband_national_id.ilike.%${s}%`;
+        const searchCondition = `wife_name.ilike.%${s}%,husband_name.ilike.%${s}%,wife_phone.ilike.%${s}%,husband_phone.ilike.%${s}%,wife_national_id.ilike.%${s}%,husband_national_id.ilike.%${s}%,address.ilike.%${s}%,governorate.ilike.%${s}%,area.ilike.%${s}%`;
         
         if (!isNaN(Number(s))) {
            // It's a number, so we also check for exact family_code match
@@ -153,7 +153,7 @@ export async function getStatusCounts() {
     };
     
     STATUS_OPTIONS.forEach(status => {
-      counts[status] = data.filter(f => f.status === status).length;
+      counts[status] = data.filter(f => f.status && f.status.split(",").map((s: string) => s.trim()).includes(status)).length;
     });
     
     return counts;
@@ -375,14 +375,7 @@ export async function deleteFamily(id: number) {
       .eq('id', id);
 
     if (error) throw error;
-    
-    // Delete associated children
-    const { error: childrenError } = await supabase
-      .from('family_children')
-      .delete()
-      .eq('family_id', id);
-      
-    if (childrenError) console.error("Error deleting children:", childrenError);
+    // Children are auto-deleted via ON DELETE CASCADE
 
     revalidatePath('/families');
     return { success: true };

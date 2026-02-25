@@ -3,6 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Coins, Users, LogOut, Sparkles, ChevronLeft } from "lucide-react";
+import { RamadanDecorations } from "@/components/ramadan-decorations";
+
+// ============================================================
+// 🌙 RAMADAN MODE — Set to false when Ramadan ends
+// This single flag controls ALL Ramadan theming across the app
+// ============================================================
+export const RAMADAN_MODE = true;
+// ============================================================
 
 interface AppSelectorProps {
   username: string;
@@ -44,64 +52,111 @@ export function AppSelector({ username }: AppSelectorProps) {
       name: "التبرعات",
       subtitle: "إدارة التبرعات والمصروفات",
       icon: Coins,
-      gradient: "from-amber-400 via-orange-500 to-rose-500",
-      bgGlow: "bg-amber-500",
+      gradient: RAMADAN_MODE 
+        ? "from-amber-400 via-yellow-500 to-amber-600" 
+        : "from-amber-400 via-orange-500 to-rose-500",
+      bgGlow: RAMADAN_MODE ? "bg-amber-500" : "bg-amber-500",
       iconBg: "from-amber-300 to-orange-400",
       href: "/donations",
       ready: true,
-      emoji: "💰",
+      emoji: RAMADAN_MODE ? "🕌" : "💰",
     },
     {
       id: "families",
       name: "العائلات",
-      subtitle: "إدارة شؤون العائلات",
+      subtitle: RAMADAN_MODE ? "رعاية الأسر المحتاجة" : "إدارة شؤون العائلات",
       icon: Users,
-      gradient: "from-violet-400 via-purple-500 to-fuchsia-500",
-      bgGlow: "bg-purple-500",
-      iconBg: "from-violet-300 to-purple-400",
+      gradient: RAMADAN_MODE 
+        ? "from-emerald-400 via-teal-500 to-emerald-600" 
+        : "from-violet-400 via-purple-500 to-fuchsia-500",
+      bgGlow: RAMADAN_MODE ? "bg-emerald-500" : "bg-purple-500",
+      iconBg: RAMADAN_MODE ? "from-emerald-300 to-teal-400" : "from-violet-300 to-purple-400",
       href: "/families",
       ready: true,
-      emoji: "👨‍👩‍👧‍👦",
+      emoji: RAMADAN_MODE ? "🤲" : "👨‍👩‍👧‍👦",
     },
   ];
 
   return (
     <div
       dir="rtl"
-      className="min-h-[100dvh] bg-[#0a0a0f] relative overflow-hidden flex flex-col"
+      className={`min-h-[100dvh] relative overflow-hidden flex flex-col ${
+        RAMADAN_MODE 
+          ? "bg-[#0a0a12]" 
+          : "bg-[#0a0a0f]"
+      }`}
     >
       {/* Animated Background Gradient Orbs */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className={`absolute top-[-20%] right-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br from-amber-500/30 via-orange-500/20 to-transparent rounded-full blur-3xl ${shouldAnimate ? 'animate-pulse' : ''}`} />
+        <div className={`absolute top-[-20%] right-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br ${
+          RAMADAN_MODE 
+            ? "from-amber-500/30 via-yellow-500/20" 
+            : "from-amber-500/30 via-orange-500/20"
+        } to-transparent rounded-full blur-3xl ${shouldAnimate ? 'animate-pulse' : ''}`} />
         <div 
-          className={`absolute bottom-[-20%] left-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br from-violet-500/30 via-purple-500/20 to-transparent rounded-full blur-3xl ${shouldAnimate ? 'animate-pulse' : ''}`} 
+          className={`absolute bottom-[-20%] left-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br ${
+            RAMADAN_MODE 
+              ? "from-emerald-500/30 via-teal-500/20" 
+              : "from-violet-500/30 via-purple-500/20"
+          } to-transparent rounded-full blur-3xl ${shouldAnimate ? 'animate-pulse' : ''}`} 
           style={shouldAnimate ? { animationDelay: "1s" } : {}} 
         />
+        {/* Extra Ramadan glow */}
+        {RAMADAN_MODE && (
+          <div className="absolute top-[30%] left-[40%] w-[200px] sm:w-[300px] h-[200px] sm:h-[300px] bg-gradient-to-br from-amber-400/15 via-yellow-300/10 to-transparent rounded-full blur-3xl" />
+        )}
       </div>
 
-      {/* Dot Pattern Overlay */}
+      {/* Dot / Geometric Pattern Overlay */}
       <div 
-        className="absolute inset-0 opacity-[0.03]"
+        className={`absolute inset-0 ${RAMADAN_MODE ? "opacity-[0.04]" : "opacity-[0.03]"}`}
         style={{
-          backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)",
-          backgroundSize: "24px 24px"
+          backgroundImage: RAMADAN_MODE
+            ? "radial-gradient(circle, #f59e0b 0.5px, transparent 0.5px), radial-gradient(circle, #10b981 0.5px, transparent 0.5px)"
+            : "radial-gradient(circle, white 1px, transparent 1px)",
+          backgroundSize: RAMADAN_MODE 
+            ? "32px 32px, 32px 32px" 
+            : "24px 24px",
+          backgroundPosition: RAMADAN_MODE 
+            ? "0 0, 16px 16px" 
+            : "0 0",
         }}
       />
+
+      {/* 🌙 Ramadan Decorations (Lanterns, Stars, زينة) */}
+      {RAMADAN_MODE && <RamadanDecorations />}
 
       {/* Content Container - Flex grow to center */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-4 sm:py-12">
         
         {/* Welcome Section - Compact on mobile */}
         <div className={`text-center mb-4 sm:mb-14 ${shouldAnimate ? 'animate-in fade-in slide-in-from-bottom-4 duration-700' : ''}`}>
-          <div className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm mb-6">
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span className="text-sm text-gray-400">مرحباً بك</span>
-          </div>
+          {/* Ramadan / Normal Badge */}
+          {RAMADAN_MODE ? (
+            <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-amber-500/10 border border-amber-400/20 backdrop-blur-sm mb-3 sm:mb-6">
+              <span className="text-lg">🌙</span>
+              <span className="text-sm sm:text-base text-amber-400 font-bold">رمضان كريم</span>
+            </div>
+          ) : (
+            <div className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm mb-6">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span className="text-sm text-gray-400">مرحباً بك</span>
+            </div>
+          )}
           
-          <h1 className="text-xl sm:text-5xl font-black text-white mb-1 sm:mb-3 tracking-tight">
-            أهلاً، <span className="bg-gradient-to-l from-amber-400 via-orange-400 to-rose-400 bg-clip-text text-transparent">{username}</span>
+          <h1 className="text-xl sm:text-5xl font-black mb-1 sm:mb-3 tracking-tight text-center text-white">
+            <span>اهلاً بيك يا</span>{" "}
+            <span className="bg-gradient-to-l from-amber-300 via-yellow-400 to-amber-400 bg-clip-text text-transparent">{username.split(" ")[0]}</span>{" "}
+            <span className="text-red-400">💛</span>
           </h1>
-          <p className="text-gray-500 text-xs sm:text-lg font-medium">اختر التطبيق الذي تريد استخدامه</p>
+          <p className={`text-xs sm:text-lg font-medium text-center ${
+            RAMADAN_MODE ? "text-amber-400/80" : "text-gray-500"
+          }`}>
+            {RAMADAN_MODE 
+              ? "كل عام وأنتم بخير 🤲" 
+              : "اختر التطبيق الذي تريد استخدامه"
+            }
+          </p>
         </div>
 
         {/* App Cards Grid - Compact on mobile */}
@@ -125,7 +180,11 @@ export function AppSelector({ username }: AppSelectorProps) {
               style={shouldAnimate ? { animationDelay: `${index * 100}ms` } : {}}
             >
               {/* Card Background with Gradient Border */}
-              <div className="absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-white/10 to-white/5 p-[1px]">
+              <div className={`absolute inset-0 rounded-2xl sm:rounded-3xl p-[1px] ${
+                RAMADAN_MODE 
+                  ? "bg-gradient-to-br from-amber-400/20 via-white/10 to-emerald-400/20" 
+                  : "bg-gradient-to-br from-white/10 to-white/5"
+              }`}>
                 <div className="absolute inset-[1px] rounded-[15px] sm:rounded-[23px] bg-[#12121a]" />
               </div>
 
@@ -234,10 +293,10 @@ export function AppSelector({ username }: AppSelectorProps) {
         </button>
       </div>
 
-      {/* Footer - Hidden on very small screens */}
+      {/* Footer */}
       <div className={`relative z-10 pb-3 sm:pb-6 text-center ${shouldAnimate ? 'animate-in fade-in duration-1000' : ''}`} style={shouldAnimate ? { animationDelay: "600ms" } : {}}>
         <p className="text-gray-700 text-[10px] sm:text-xs">
-          صُنع بكل حب بواسطة <span className="text-gray-500">أحمد مصطفى ❤️</span>
+          صُنع بكل حب بواسطة <span className={RAMADAN_MODE ? "text-amber-500/60" : "text-gray-500"}>أحمد مصطفى {RAMADAN_MODE ? "🌙" : "❤️"}</span>
         </p>
       </div>
     </div>

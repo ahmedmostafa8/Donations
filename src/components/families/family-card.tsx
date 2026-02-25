@@ -1,6 +1,7 @@
 "use client";
 
-import { Phone, MessageCircle, Copy, ChevronLeft } from "lucide-react";
+import { useState } from "react";
+import { Phone, MessageCircle, Copy, Check, ChevronLeft, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_COLORS, type Family, type FamilyStatus } from "@/app/families/types";
 import { toast } from "sonner";
@@ -12,7 +13,9 @@ interface FamilyCardProps {
 }
 
 export function FamilyCard({ family, onClick }: Omit<FamilyCardProps, 'onEdit'>) {
-  const statusColor = STATUS_COLORS[family.status as FamilyStatus] || "gray";
+  const familyStatuses = family.status.split(",").map(s => s.trim()).filter(Boolean);
+  const primaryStatusColor = STATUS_COLORS[familyStatuses[0] as FamilyStatus] || "gray";
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   
   // Copy to clipboard with fallback
   const copyToClipboard = async (text: string, label: string) => {
@@ -32,6 +35,8 @@ export function FamilyCard({ family, onClick }: Omit<FamilyCardProps, 'onEdit'>)
         document.body.removeChild(textArea);
         toast.success(`تم نسخ ${label}`);
       }
+      copiedField !== text && setCopiedField(text);
+      setTimeout(() => setCopiedField(null), 1500);
     } catch (error) {
       console.error('Failed to copy:', error);
       toast.error('فشل النسخ');
@@ -64,7 +69,7 @@ export function FamilyCard({ family, onClick }: Omit<FamilyCardProps, 'onEdit'>)
     gray: { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-200" }
   };
   
-  const style = statusStyles[statusColor] || statusStyles.gray;
+  const style = statusStyles[primaryStatusColor] || statusStyles.gray;
   
   return (
     <div 
@@ -82,38 +87,62 @@ export function FamilyCard({ family, onClick }: Omit<FamilyCardProps, 'onEdit'>)
         
         {/* Info */}
         <div className="flex-1 min-w-0 text-right">
-          {/* Wife Name + Status */}
-          <div className="flex items-center gap-2">
-            <h3 className="font-bold text-gray-900 truncate min-w-0">
+          {/* Wife Name */}
+            <h3 className="font-bold text-gray-900 truncate">
               {family.wife_name}
             </h3>
-            <span className={cn(
-              "px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0",
-              style.bg, style.text
-            )}>
-              {family.status}
-            </span>
+            {/* Status Tags */}
+            <div className="flex gap-1 flex-wrap mt-1">
+            {familyStatuses.map((s, i) => {
+              const sColor = STATUS_COLORS[s as FamilyStatus] || "gray";
+              const sStyle = statusStyles[sColor] || statusStyles.gray;
+              return (
+                <span key={i} className={cn(
+                  "px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0",
+                  sStyle.bg, sStyle.text
+                )}>
+                  {s}
+                </span>
+              );
+            })}
           </div>
-          
-          {/* Husband */}
-          {family.husband_name && (
-            <div className="text-xs text-gray-500 mt-0.5 truncate">
-              👨 {family.husband_name}
-              {family.husband_status === "متوفي" && <span className="text-red-500"> (متوفي)</span>}
-            </div>
-          )}
-          
-          {/* Address */}
-          {family.address && (
-            <div className="text-xs text-gray-400 mt-0.5 truncate dir-rtl" title={family.address}>
-              📍 {family.address}
-            </div>
-          )}
         </div>
         
         {/* Arrow */}
         <ChevronLeft className="w-5 h-5 text-gray-300 shrink-0 mt-2" />
       </button>
+      
+      {/* Husband Row + Mini Badges - Full width from far right */}
+      {(family.husband_name || (family.children && family.children.length > 0) || family.monthly_income || (family.attachments && family.attachments.length > 0)) && (
+        <div className="flex items-center justify-between px-3 pb-2 -mt-1">
+          {/* Husband Name */}
+          <div className="text-xs text-gray-500 truncate flex-1 min-w-0">
+            {family.husband_name && (
+              <>
+                <User className="w-3.5 h-3.5 inline-block ml-1 text-gray-400" />
+                {family.husband_name}
+                {family.husband_status === "متوفي" && <span className="text-red-500"> (متوفي)</span>}
+                {family.husband_status === "منفصل" && <span className="text-amber-500"> (منفصل)</span>}
+              </>
+            )}
+          </div>
+          
+          {/* Mini Info Badges */}
+          <div className="flex gap-1.5 shrink-0 mr-2">
+            {family.children && family.children.length > 0 && (
+              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                👶 {family.children.length}
+              </span>
+            )}
+            {family.monthly_income ? (
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
+                {family.monthly_income} ج
+              </span>
+            ) : null}
+
+          </div>
+        </div>
+      )}
       
       {/* Quick Actions - Compact */}
       {(family.wife_phone || family.husband_phone) && (
@@ -163,10 +192,24 @@ export function FamilyCard({ family, onClick }: Omit<FamilyCardProps, 'onEdit'>)
                 e.stopPropagation();
                 copyToClipboard(family.wife_national_id!, "الرقم القومي");
               }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-gray-600 hover:bg-gray-50 transition-colors"
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-2 transition-all duration-200",
+                copiedField === family.wife_national_id
+                  ? "text-emerald-600 bg-emerald-50"
+                  : "text-gray-600 hover:bg-gray-50"
+              )}
             >
-              <Copy className="w-3.5 h-3.5" />
-              <span className="text-xs font-bold">نسخ القومي</span>
+              {copiedField === family.wife_national_id ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span className="text-xs font-bold">تم النسخ</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span className="text-xs font-bold">نسخ القومي</span>
+                </>
+              )}
             </button>
           )}
         </div>

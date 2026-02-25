@@ -62,10 +62,13 @@ export function FamilyForm({
 
   // Track if any changes have been made
   const [isDirty, setIsDirty] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   // Family Data
   const [familyCode, setFamilyCode] = useState(family?.family_code || 0);
-  const [status, setStatus] = useState(family?.status || "أسرة رقيقة الحال");
+  const [statuses, setStatuses] = useState<string[]>(
+    family?.status ? family.status.split(",").map(s => s.trim()).filter(Boolean) : ["أسرة رقيقة الحال"]
+  );
 
   // Wife Data
   const [wifeName, setWifeName] = useState(family?.wife_name || "");
@@ -149,6 +152,12 @@ export function FamilyForm({
     attachments: true,
   });
 
+  // Scroll form to top on mount
+  useEffect(() => {
+    const modal = document.getElementById("family-form-content");
+    if (modal) modal.scrollTop = 0;
+  }, []);
+
   // Prevent background scroll and overscroll on touch devices
   useEffect(() => {
     let lastY = 0;
@@ -216,11 +225,7 @@ export function FamilyForm({
   // Custom close handler to warn if dirty
   const handleSafeClose = () => {
     if (isDirty) {
-      if (
-        window.confirm("هناك تعديلات لم يتم حفظها. هل أنت متأكد من الإغلاق؟")
-      ) {
-        onClose();
-      }
+      setShowCloseConfirm(true);
     } else {
       onClose();
     }
@@ -304,7 +309,7 @@ export function FamilyForm({
         housing_condition: housingCondition.trim() || undefined,
         monthly_income: monthlyIncome || undefined,
         income_details: incomeDetails.trim() || undefined,
-        status: status,
+        status: statuses.join(","),
         attachments: attachments, // Existing attachments only
         research_date: researchDate || undefined,
         researcher_name: researcherName.trim() || undefined,
@@ -369,7 +374,7 @@ export function FamilyForm({
     <>
       <div
         className={cn(
-          "bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] flex flex-col",
+          "bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] flex flex-col overflow-hidden",
           // Animation: Consistent full slide up (duration tuned)
           isEditing
             ? "animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0 sm:zoom-in-95"
@@ -401,14 +406,44 @@ export function FamilyForm({
             </div>
           ) : (
             <>
-              {/* Status */}
+              {/* Status - Multi Select Chips */}
               <div>
-                <CustomSelect
-                  label="حالة الأسرة"
-                  value={status}
-                  onChange={(v) => handleFieldChange(setStatus, v)}
-                  options={STATUS_OPTIONS}
-                />
+                <label className="block text-sm font-bold text-gray-700 mb-2">حالة الأسرة</label>
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                  {STATUS_OPTIONS.map((opt, index) => {
+                    const isSelected = statuses.includes(opt);
+                    const isLastOdd = index === STATUS_OPTIONS.length - 1 && STATUS_OPTIONS.length % 2 !== 0;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          handleFieldChange(setStatuses, (prev: string[]) => {
+                            if (isSelected) {
+                              // Don't allow removing the last status
+                              if (prev.length <= 1) return prev;
+                              return prev.filter(s => s !== opt);
+                            } else {
+                              return [...prev, opt];
+                            }
+                          });
+                        }}
+                        className={cn(
+                          "px-3 py-2 rounded-xl text-sm font-bold transition-all border",
+                          isLastOdd && "col-span-2 sm:col-span-1",
+                          isSelected
+                            ? "bg-violet-500 text-white border-violet-500 shadow-md shadow-violet-200 scale-105"
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                        )}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+                {statuses.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1 font-medium">اختر حالة واحدة على الأقل</p>
+                )}
               </div>
 
               {/* === RESEARCH INFO SECTION === */}
@@ -749,7 +784,7 @@ export function FamilyForm({
                         حالة الزوج
                       </label>
                       <div className="flex gap-2">
-                        {["متواجد", "متوفي"].map((opt) => (
+                        {["متواجد", "متوفي", "منفصل"].map((opt) => (
                           <button
                             key={opt}
                             type="button"
@@ -757,11 +792,13 @@ export function FamilyForm({
                               handleFieldChange(setHusbandStatus, opt)
                             }
                             className={cn(
-                              "flex-1 h-10 rounded-lg font-bold transition-all",
+                              "flex-1 h-10 rounded-lg font-bold transition-all text-sm",
                               husbandStatus === opt
                                 ? opt === "متوفي"
                                   ? "bg-red-500 text-white"
-                                  : "bg-emerald-500 text-white"
+                                  : opt === "منفصل"
+                                    ? "bg-amber-500 text-white"
+                                    : "bg-emerald-500 text-white"
                                 : "bg-gray-100 text-gray-600",
                             )}
                           >
@@ -771,7 +808,7 @@ export function FamilyForm({
                       </div>
                     </div>
 
-                    {husbandStatus === "متواجد" && (
+                    {(husbandStatus === "متواجد" || husbandStatus === "منفصل") && (
                       <>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
@@ -1189,21 +1226,48 @@ export function FamilyForm({
                                     key={type.id}
                                     onClick={() => {
                                       const newFiles = [...pendingFiles];
-                                      newFiles[index].label = type.label;
-                                      newFiles[index].typeId = type.id;
+                                      if (type.id === 'other') {
+                                        newFiles[index].label = '';
+                                        newFiles[index].typeId = 'other';
+                                      } else {
+                                        newFiles[index].label = type.label;
+                                        newFiles[index].typeId = type.id;
+                                      }
                                       setPendingFiles(newFiles);
                                     }}
                                     className={cn(
                                       "whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
-                                      pf.label === type.label
-                                        ? `${type.color} border-transparent ring-2 ring-white shadow-sm scale-105`
-                                        : "bg-white border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700",
+                                      type.id === 'other'
+                                        ? pf.typeId === 'other'
+                                          ? `${type.color} border-transparent ring-2 ring-white shadow-sm scale-105`
+                                          : "bg-white border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                                        : pf.label === type.label
+                                          ? `${type.color} border-transparent ring-2 ring-white shadow-sm scale-105`
+                                          : "bg-white border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700",
                                     )}
                                   >
                                     {type.label}
                                   </button>
                                 ))}
                               </div>
+
+                              {/* Custom name input for "مستند آخر" */}
+                              {pf.typeId === 'other' && (
+                                <div className="pb-2">
+                                  <input
+                                    type="text"
+                                    value={pf.label}
+                                    onChange={(e) => {
+                                      const newFiles = [...pendingFiles];
+                                      newFiles[index].label = e.target.value;
+                                      setPendingFiles(newFiles);
+                                    }}
+                                    placeholder="اكتب اسم المستند..."
+                                    className="w-full h-10 px-3 rounded-lg border-2 border-gray-200 focus:border-purple-500 outline-none font-medium text-right text-sm"
+                                    autoFocus
+                                  />
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1289,6 +1353,42 @@ export function FamilyForm({
           </button>
         </div>
       </div>
+
+      {/* Close Confirmation Modal */}
+      {showCloseConfirm && (
+        <div 
+          className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setShowCloseConfirm(false)}
+        >
+          <div 
+            dir="rtl"
+            className="bg-white rounded-2xl p-6 w-full max-w-sm animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-black text-gray-900 mb-2">تعديلات غير محفوظة</h3>
+            <p className="text-gray-500 text-sm mb-6">
+              هناك تعديلات لم يتم حفظها. هل أنت متأكد من الإغلاق؟
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCloseConfirm(false)}
+                className="flex-1 h-11 rounded-xl bg-violet-500 text-white font-bold hover:bg-violet-600 transition-colors"
+              >
+                متابعة التعديل
+              </button>
+              <button
+                onClick={() => {
+                  setShowCloseConfirm(false);
+                  onClose();
+                }}
+                className="flex-1 h-11 rounded-xl bg-red-100 text-red-600 font-bold hover:bg-red-200 transition-colors"
+              >
+                إغلاق بدون حفظ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 

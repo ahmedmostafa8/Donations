@@ -5,6 +5,8 @@ import { Loader2, ArrowLeft, User } from "lucide-react";
 import { loginUser } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { RAMADAN_MODE } from "@/components/app-selector";
+import { RamadanDecorations } from "@/components/ramadan-decorations";
 
 export function LoginForm() {
   const [username, setUsername] = useState("");
@@ -89,24 +91,45 @@ export function LoginForm() {
 
   return (
     <div 
-      className="min-h-[100dvh] w-screen bg-[#0a0a0f] flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden" 
+      className={`min-h-[100dvh] w-screen flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden ${
+        RAMADAN_MODE ? "bg-[#0a0a12]" : "bg-[#0a0a0f]"
+      }`}
       dir="rtl"
     >
-      {/* Animated Background Gradient Orbs - Same warm colors as app-selector */}
+      {/* Animated Background Gradient Orbs */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-[-20%] right-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br from-amber-500/30 via-orange-500/20 to-transparent rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br from-violet-500/30 via-purple-500/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
-        <div className="absolute top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] w-[200px] h-[200px] bg-gradient-to-br from-rose-500/20 via-pink-500/10 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: "2s" }} />
+        <div className={`absolute top-[-20%] right-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br ${
+          RAMADAN_MODE 
+            ? "from-amber-500/30 via-yellow-500/20" 
+            : "from-amber-500/30 via-orange-500/20"
+        } to-transparent rounded-full blur-3xl animate-pulse`} />
+        <div className={`absolute bottom-[-20%] left-[-10%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-gradient-to-br ${
+          RAMADAN_MODE 
+            ? "from-emerald-500/30 via-teal-500/20" 
+            : "from-violet-500/30 via-purple-500/20"
+        } to-transparent rounded-full blur-3xl animate-pulse`} style={{ animationDelay: "1s" }} />
+        {RAMADAN_MODE && (
+          <div className="absolute top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] w-[200px] h-[200px] bg-gradient-to-br from-amber-400/15 via-yellow-300/10 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: "2s" }} />
+        )}
+        {!RAMADAN_MODE && (
+          <div className="absolute top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] w-[200px] h-[200px] bg-gradient-to-br from-rose-500/20 via-pink-500/10 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: "2s" }} />
+        )}
       </div>
 
-      {/* Dot Pattern Overlay */}
+      {/* Dot / Geometric Pattern Overlay */}
       <div 
-        className="absolute inset-0 opacity-[0.03]"
+        className={`absolute inset-0 ${RAMADAN_MODE ? "opacity-[0.04]" : "opacity-[0.03]"}`}
         style={{
-          backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)",
-          backgroundSize: "24px 24px"
+          backgroundImage: RAMADAN_MODE
+            ? "radial-gradient(circle, #f59e0b 0.5px, transparent 0.5px), radial-gradient(circle, #10b981 0.5px, transparent 0.5px)"
+            : "radial-gradient(circle, white 1px, transparent 1px)",
+          backgroundSize: RAMADAN_MODE ? "32px 32px, 32px 32px" : "24px 24px",
+          backgroundPosition: RAMADAN_MODE ? "0 0, 16px 16px" : "0 0",
         }}
       />
+
+      {/* 🌙 Ramadan Decorations */}
+      {RAMADAN_MODE && <RamadanDecorations />}
 
       {/* Content Container - Moves up when keyboard opens */}
       <div 
@@ -120,18 +143,33 @@ export function LoginForm() {
 
         {/* Welcome Text */}
         <div className="text-center mb-8 space-y-2">
+          {RAMADAN_MODE && (
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-400/20 backdrop-blur-sm mb-3">
+              <span className="text-base">🌙</span>
+              <span className="text-sm text-amber-400 font-bold">رمضان كريم</span>
+            </div>
+          )}
           <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-            مرحباً بك 👋
+            {RAMADAN_MODE ? "أهلاً بيك 🤲" : "مرحباً بك 👋"}
           </h1>
-          <p className="text-sm sm:text-base font-medium text-gray-500">
-            سجل دخولك لمتابعة نفقاتك بسهولة
+          <p className={`text-sm sm:text-base font-medium ${
+            RAMADAN_MODE ? "text-amber-400/70" : "text-gray-500"
+          }`}>
+            {RAMADAN_MODE 
+              ? "سجل دخولك وكل عام وأنت بخير" 
+              : "سجل دخولك لمتابعة نفقاتك بسهولة"
+            }
           </p>
         </div>
 
         {/* Login Card */}
         <div className="relative rounded-3xl overflow-hidden">
           {/* Card Border Gradient */}
-          <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/10 to-white/5 p-[1px]">
+          <div className={`absolute inset-0 rounded-3xl p-[1px] ${
+            RAMADAN_MODE 
+              ? "bg-gradient-to-br from-amber-400/20 via-white/10 to-emerald-400/20" 
+              : "bg-gradient-to-br from-white/10 to-white/5"
+          }`}>
             <div className="absolute inset-[1px] rounded-[23px] bg-[#12121a]" />
           </div>
 
@@ -166,16 +204,18 @@ export function LoginForm() {
                 </div>
               </div>
 
-              {/* Submit Button - Warm colors */}
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={loading || !username.trim()}
                 className={`
                   w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2 
                   transition-all duration-300 cursor-pointer
-                  bg-gradient-to-l from-amber-500 via-orange-500 to-rose-500
-                  hover:from-amber-400 hover:via-orange-400 hover:to-rose-400
-                  text-white shadow-lg shadow-amber-500/25
+                  ${RAMADAN_MODE 
+                    ? "bg-gradient-to-l from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:via-yellow-400 hover:to-amber-500 shadow-lg shadow-amber-500/25"
+                    : "bg-gradient-to-l from-amber-500 via-orange-500 to-rose-500 hover:from-amber-400 hover:via-orange-400 hover:to-rose-400 shadow-lg shadow-amber-500/25"
+                  }
+                  text-white
                   active:scale-[0.98]
                   disabled:opacity-50 disabled:shadow-none disabled:active:scale-100 disabled:cursor-not-allowed
                 `}
@@ -199,7 +239,7 @@ export function LoginForm() {
         {/* Footer */}
         <div className="mt-8 text-center">
         <p className="text-gray-700 text-[10px] sm:text-xs">
-          صُنع بكل حب بواسطة <span className="text-gray-500">أحمد مصطفى ❤️</span>
+          صُنع بكل حب بواسطة <span className={RAMADAN_MODE ? "text-amber-500/60" : "text-gray-500"}>أحمد مصطفى {RAMADAN_MODE ? "🌙" : "❤️"}</span>
         </p>  
         </div>
       </div>

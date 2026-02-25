@@ -6,5 +6,6 @@ export const DOCUMENT_TYPES = [
   { id: 'medical', label: 'تقرير طبي', color: 'bg-red-100 text-red-700' },
   { id: 'income', label: 'بيان دخل', color: 'bg-yellow-100 text-yellow-700' },
   { id: 'lease', label: 'عقد إيجار', color: 'bg-orange-100 text-orange-700' },
+  { id: 'divorce_cert', label: 'شهادة طلاق', color: 'bg-pink-100 text-pink-700' },
   { id: 'other', label: 'مستند آخر', color: 'bg-gray-100 text-gray-700' },
 ];
